@@ -550,13 +550,13 @@ export default function DocumentDetailDrawer({ document, choices, onClose, onSav
             </section>
           )}
 
-          {/* PDF PREVIEW INLINE — chỉ cho PDF files */}
-          {isPdfDocument && document.webUrl && (
+          {/* PDF PREVIEW INLINE — stream qua proxy nội bộ same-origin (không nhúng SharePoint URL) */}
+          {isPdfDocument && document.id && (
             <section className={styles.metaSection}>
               <h3 className={styles.metaSectionTitle}>Xem nhanh PDF</h3>
               {previewError ? (
                 <div className={styles.previewError}>
-                  <span>Không thể xem trước file trong khung này.</span>
+                  <span>Không thể xem nhanh PDF. Vui lòng bấm Mở file.</span>
                   <button
                     type="button"
                     className={styles.pairItemBtn}
@@ -576,7 +576,7 @@ export default function DocumentDetailDrawer({ document, choices, onClose, onSav
                   )}
                   <iframe
                     title={`PDF preview: ${document.fileName ?? ''}`}
-                    src={document.webUrl}
+                    src={`/api/files/pdf-preview?id=${encodeURIComponent(document.id)}`}
                     className={styles.previewIframe}
                     onLoad={(): void => setPreviewLoading(false)}
                     onError={(): void => { setPreviewLoading(false); setPreviewError(true); }}

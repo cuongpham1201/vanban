@@ -36,6 +36,7 @@ export async function GET(): Promise<NextResponse> {
 
     const body = {
       ok: true,
+      source: cached.source,
       totals,
       kpis: computeKpis(docs),
       recentDocuments: computeRecent(docs),
@@ -46,7 +47,7 @@ export async function GET(): Promise<NextResponse> {
       cacheTtlSeconds: 60,
     };
     // eslint-disable-next-line no-console
-    console.log(`[PERF] api-dashboard ${(performance.now() - t0).toFixed(1)}ms (docs=${docs.length})`);
+    console.log(`[PERF] api-dashboard ${(performance.now() - t0).toFixed(0)}ms source=${cached.source} docs=${docs.length}`);
     return NextResponse.json(body);
   } catch (err) {
     if (err instanceof AuthError) {

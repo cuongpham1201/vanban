@@ -1,7 +1,8 @@
-// Server-side cache cho documents (P2) — dùng CHUNG bởi /api/documents và /api/dashboard.
-// - TTL 60s: trong 60s KHÔNG gọi Graph lại.
+// Server-side cache cho documents — dùng CHUNG bởi /api/documents và /api/dashboard.
+// - TTL 5 phút: trong 5 phút KHÔNG gọi Graph lại (warm load nhanh).
 // - In-flight dedupe: nhiều request song song chỉ kích hoạt 1 lần fetch+build.
-// [PERF] labels (P1): api-documents-request | -hit-cache | -hit-inflight | -fetch | -finish.
+// - source = 'cache' | 'inflight' | 'graph' để route log benchmark.
+// Logs: [CACHE] documents hit | miss | reuse-inflight | refresh done | invalidated.
 //
 // LƯU Ý: cache global (toàn org). Hợp lệ vì mọi user đã đăng nhập đều có quyền Read
 // trên DMS Library (xem DMS_PERMISSION_MODEL.md). Không dùng cho dữ liệu per-user.
@@ -14,7 +15,7 @@ import { IDocument } from '@dms/models/IDocument';
 
 const PAGE_SIZE = 200;
 const SAFETY_MAX = 2000;
-const TTL_MS = 60_000; // 60s
+const TTL_MS = 5 * 60 * 1000; // 5 phút
 
 export interface CachedDocs {
   documents: IDocument[];
@@ -27,6 +28,9 @@ export interface CachedDocs {
   buildMs: number;
 }
 
+export type DocsSource = 'cache' | 'inflight' | 'graph';
+export type DocsResult = CachedDocs & { source: DocsSource };
+
 interface ItemsResponse {
   value: GraphListItem[];
   '@odata.nextLink'?: string;
@@ -36,7 +40,6 @@ interface ItemsResponse {
 let _cache: CachedDocs | undefined;
 let _inflight: Promise<CachedDocs> | undefined;
 
-// Thống kê cache để báo cáo (P5).
 const _metrics = { requests: 0, cacheHits: 0, inflightHits: 0, graphFetches: 0 };
 
 export function getCacheMetrics(): typeof _metrics & { hitRate: number } {
@@ -45,9 +48,9 @@ export function getCacheMetrics(): typeof _metrics & { hitRate: number } {
   return { ..._metrics, hitRate: served ? +(hits / served).toFixed(3) : 0 };
 }
 
-function perf(label: string, ms?: number): void {
+function clog(msg: string): void {
   // eslint-disable-next-line no-console
-  console.log(`[PERF] ${label}${ms !== undefined ? ' ' + ms.toFixed(1) + 'ms' : ''}`);
+  console.log(`[CACHE] ${msg}`);
 }
 
 async function fetchAndBuild(accessToken: string): Promise<CachedDocs> {
@@ -86,44 +89,35 @@ async function fetchAndBuild(accessToken: string): Promise<CachedDocs> {
     `[MAP] raw=${rawItems.length} file=${fileItems.length} mapped=${mapped.length} documents=${documents.length} ` +
       `pages=${pages} byExt=${JSON.stringify(stats.byExt)} missingKeyField=${JSON.stringify(stats.missingKeyField)}`
   );
+  clog(`documents refresh done ${buildMs.toFixed(0)}ms (docs=${documents.length}, pages=${pages})`);
 
-  return {
-    documents,
-    rawItemCount: rawItems.length,
-    fileItemCount: fileItems.length,
-    pages,
-    truncated,
-    stats,
-    builtAt: Date.now(),
-    buildMs,
-  };
+  return { documents, rawItemCount: rawItems.length, fileItemCount: fileItems.length, pages, truncated, stats, builtAt: Date.now(), buildMs };
 }
 
 /**
  * Lấy documents (mapped + paired) qua cache dùng chung.
- * @param force bỏ qua cache (nút "Tải lại dữ liệu").
+ * @param forceRefresh bỏ qua cache (admin/dev: ?forceRefresh=1).
  */
-export async function getCachedDocuments(accessToken: string, force = false): Promise<CachedDocs> {
+export async function getCachedDocuments(accessToken: string, forceRefresh = false): Promise<DocsResult> {
   _metrics.requests++;
-  perf('api-documents-request');
 
   // 1) Cache còn hạn?
-  if (!force && _cache && Date.now() - _cache.builtAt < TTL_MS) {
+  if (!forceRefresh && _cache && Date.now() - _cache.builtAt < TTL_MS) {
     _metrics.cacheHits++;
-    perf('api-documents-hit-cache', Date.now() - _cache.builtAt);
-    return _cache;
+    clog(`documents hit (age ${Math.round((Date.now() - _cache.builtAt) / 1000)}s, docs=${_cache.documents.length})`);
+    return { ..._cache, source: 'cache' };
   }
 
   // 2) Đang có fetch chạy? → await chung (in-flight dedupe).
-  if (!force && _inflight) {
+  if (!forceRefresh && _inflight) {
     _metrics.inflightHits++;
-    perf('api-documents-hit-inflight');
-    return _inflight;
+    clog('documents reuse-inflight');
+    const built = await _inflight;
+    return { ...built, source: 'inflight' };
   }
 
   // 3) Fetch mới.
-  perf('api-documents-fetch');
-  const tStart = performance.now();
+  clog('documents miss');
   _inflight = fetchAndBuild(accessToken)
     .then((built) => {
       _cache = built;
@@ -131,11 +125,21 @@ export async function getCachedDocuments(accessToken: string, force = false): Pr
     })
     .finally(() => {
       _inflight = undefined;
-      perf('api-documents-finish', performance.now() - tStart);
     });
-  return _inflight;
+  const built = await _inflight;
+  return { ...built, source: 'graph' };
 }
 
-export function invalidateDocumentsCache(): void {
+/**
+ * Xóa cache thủ công — GỌI sau khi mutation thay đổi dữ liệu SharePoint.
+ * TODO: gọi từ các route mutation khi mở write (read-only hiện tại chưa có):
+ *   - POST /api/documents/upload          → invalidateDocumentsCache('upload')
+ *   - PATCH /api/documents/:id (metadata)  → invalidateDocumentsCache('edit')
+ *   - POST /api/documents/recycle (delete) → invalidateDocumentsCache('delete')
+ *   - chuẩn hóa metadata hàng loạt         → invalidateDocumentsCache('normalize')
+ */
+export function invalidateDocumentsCache(reason?: string): void {
   _cache = undefined;
+  _inflight = undefined;
+  clog(`documents invalidated${reason ? ' (' + reason + ')' : ''}`);
 }
