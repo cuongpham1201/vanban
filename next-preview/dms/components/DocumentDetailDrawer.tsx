@@ -574,13 +574,14 @@ export default function DocumentDetailDrawer({ document, choices, onClose, onSav
                   {previewLoading && (
                     <div className={styles.previewLoading}>Đang tải bản xem trước...</div>
                   )}
+                  {/* same-origin proxy; KHÔNG sandbox (Chrome chặn PDF viewer trong iframe sandbox). */}
                   <iframe
-                    title={`PDF preview: ${document.fileName ?? ''}`}
-                    src={`/api/files/pdf-preview?id=${encodeURIComponent(document.id)}`}
+                    key={`/api/files/pdf-preview?id=${encodeURIComponent(document.id)}`}
+                    title={`Xem nhanh PDF: ${document.fileName ?? document.soVanBan ?? document.id}`}
+                    src={`/api/files/pdf-preview?id=${encodeURIComponent(document.id)}#toolbar=1&navpanes=0`}
                     className={styles.previewIframe}
                     onLoad={(): void => setPreviewLoading(false)}
                     onError={(): void => { setPreviewLoading(false); setPreviewError(true); }}
-                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
                   />
                 </div>
               )}
