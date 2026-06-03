@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thay thế văn bản · BHL DMS</title>
+<link rel="stylesheet" href="assets/ds.css">
+<style>
+  html, body { height: 100%; }
+  .screen { display: flex; flex-direction: column; height: 100vh; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: var(--sp-8) var(--sp-6) var(--sp-12); width: 100%; }
+
+  .flow { display: grid; grid-template-columns: 1fr 64px 1fr; gap: 0; align-items: stretch; margin-bottom: 24px; }
+  .docbox { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--r-lg); box-shadow: var(--sh-1); overflow: hidden; }
+  .docbox .head { padding: 12px 16px; font-size: var(--fs-xs); font-weight: 700; letter-spacing: .03em; text-transform: uppercase; border-bottom: 1px solid var(--gray-150); display: flex; align-items: center; gap: 8px; }
+  .docbox.old .head { color: var(--gray-600); background: var(--gray-050); }
+  .docbox.new .head { color: var(--navy-700); background: var(--navy-050); }
+  .docbox .body { padding: 18px 16px; }
+
+  .arrow { display: grid; place-items: center; color: var(--navy-500); }
+  .arrow svg { width: 30px; height: 30px; }
+
+  .pickedcard { display: flex; gap: 12px; }
+  .pickedcard .ficon { width: 40px; height: 46px; border-radius: var(--r-xs); background: var(--red-100); color: var(--red-600); display: grid; place-items: center; font-size: 9px; font-weight: 800; flex-shrink: 0; }
+  .pickedcard .num { font-family: var(--font-mono); font-size: var(--fs-xs); font-weight: 600; color: var(--navy-600); }
+
+  .picksearch { display: flex; align-items: center; gap: 9px; border: 1px solid var(--gray-300); border-radius: var(--r-sm); padding: 9px 12px; }
+  .picksearch svg { width: 17px; height: 17px; color: var(--gray-400); }
+  .picksearch input { border: 0; outline: none; flex: 1; font: inherit; font-size: var(--fs-sm); }
+  .suggest { margin-top: 10px; border: 1px solid var(--gray-150); border-radius: var(--r-md); overflow: hidden; }
+  .sg { display: flex; align-items: center; gap: 10px; padding: 10px 12px; cursor: pointer; border-bottom: 1px solid var(--gray-100); }
+  .sg:last-child { border: 0; } .sg:hover { background: var(--gray-050); }
+  .sg .num { font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 600; color: var(--navy-600); }
+
+  .dropmini { border: 2px dashed var(--gray-300); border-radius: var(--r-md); padding: 26px; text-align: center; cursor: pointer; }
+  .dropmini:hover { border-color: var(--navy-400); background: var(--navy-050); }
+  .dropmini svg { width: 24px; height: 24px; color: var(--navy-600); }
+
+  .link-preview { background: var(--gold-050); border: 1px solid var(--gold-200); border-radius: var(--r-lg); padding: 18px 20px; }
+  .linkrow { display: flex; align-items: center; gap: 10px; padding: 7px 0; font-size: var(--fs-sm); }
+  .linkrow .tagk { font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 700; padding: 2px 7px; border-radius: var(--r-xs); }
+  .opt { display: flex; gap: 11px; align-items: flex-start; padding: 12px 0; border-top: 1px solid var(--gray-150); }
+  .opt input { width: 16px; height: 16px; margin-top: 2px; accent-color: var(--navy-600); }
+
+  @media (max-width: 760px) { .flow { grid-template-columns: 1fr; gap: 12px; } .arrow { transform: rotate(90deg); height: 40px; } }
+</style>
+</head>
+<body>
+<div class="screen" data-screen-label="Replace Document">
+  <header data-shell="appbar"></header>
+  <div class="appbody" style="flex:1; min-height:0;">
+    <aside data-shell="sidenav"></aside>
+    <main class="maincol scrollbar">
+      <div class="wrap">
+        <h1 class="t-h1" style="margin:0 0 4px">Thay thế văn bản</h1>
+        <p class="t-sm mut" style="margin:0 0 28px">Liên kết văn bản mới với văn bản cũ. Hệ thống tự động cập nhật quan hệ hai chiều và lưu lịch sử.</p>
+
+        <div class="flow">
+          <div class="docbox old">
+            <div class="head">① Văn bản bị thay thế</div>
+            <div class="body">
+              <div class="picksearch" style="margin-bottom:12px" id="ps"></div>
+              <div class="pickedcard" style="padding:12px;border:1px solid var(--navy-300);border-radius:var(--r-md);background:var(--navy-050)">
+                <div class="ficon">PDF</div>
+                <div style="flex:1">
+                  <div class="num">QĐ-2021/088</div>
+                  <div class="t-sm" style="font-weight:600;line-height:1.35">Quy chế quản lý chất lượng sản phẩm (2021)</div>
+                  <div class="row gap-2" style="margin-top:6px"><span class="badge badge-ok" style="padding:2px 7px">Hiệu lực</span><span class="t-2xs mut">Ký: Phạm Đức Toàn · 04/03/2021</span></div>
+                </div>
+              </div>
+              <div class="suggest" id="suggest"></div>
+            </div>
+          </div>
+
+          <div class="arrow" id="arrow"></div>
+
+          <div class="docbox new">
+            <div class="head">② Văn bản thay thế (mới)</div>
+            <div class="body">
+              <div class="dropmini" id="drop" style="margin-bottom:12px"><div id="dropic"></div><div class="t-sm" style="font-weight:600;margin-top:8px">Tải lên file mới</div><div class="t-2xs mut">hoặc chọn văn bản đã có trong kho</div></div>
+              <div class="pickedcard" style="padding:12px;border:1px solid var(--navy-400);border-radius:var(--r-md);background:#fff">
+                <div class="ficon" style="background:var(--navy-050);color:var(--navy-600)">PDF</div>
+                <div style="flex:1">
+                  <div class="num">QĐ-2024/142</div>
+                  <div class="t-sm" style="font-weight:600;line-height:1.35">Quy chế quản lý chất lượng sản phẩm bia và nước giải khát</div>
+                  <div class="row gap-2" style="margin-top:6px"><span class="badge badge-info" style="padding:2px 7px">Mới · Dự thảo</span><span class="t-2xs mut">2,8 MB · đã tải lên</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="link-preview">
+          <div class="t-eyebrow" style="color:var(--gold-700);margin-bottom:8px">Quan hệ sẽ được tạo</div>
+          <div class="linkrow"><span class="tagk" style="background:var(--navy-100);color:var(--navy-700)">QĐ-2024/142</span><span class="mut">thay thế →</span><span class="tagk" style="background:var(--gray-150);color:var(--gray-600)">QĐ-2021/088</span></div>
+          <div class="linkrow"><span class="tagk" style="background:var(--gray-150);color:var(--gray-600)">QĐ-2021/088</span><span class="mut">bị thay thế bởi →</span><span class="tagk" style="background:var(--navy-100);color:var(--navy-700)">QĐ-2024/142</span></div>
+
+          <div style="margin-top:8px">
+            <div class="opt"><input type="checkbox" checked><div><div class="t-sm" style="font-weight:600">Chuyển văn bản cũ sang trạng thái "Hết hiệu lực"</div><div class="t-xs mut">Vẫn lưu trữ và tìm được, nhưng đánh dấu rõ ràng đã hết hiệu lực kể từ ngày thay thế.</div></div></div>
+            <div class="opt"><input type="checkbox" checked><div><div class="t-sm" style="font-weight:600">Kế thừa metadata, tags và văn bản liên quan từ bản cũ</div><div class="t-xs mut">Tiết kiệm thời gian nhập liệu — bạn có thể chỉnh sửa lại sau.</div></div></div>
+            <div class="opt" style="align-items:center"><span class="field-label" style="margin:0;width:130px">Ngày hiệu lực thay thế</span><input class="input" value="18/09/2024" style="max-width:200px"></div>
+          </div>
+        </div>
+
+        <div class="row between" style="margin-top:24px;padding-top:20px;border-top:1px solid var(--gray-200)">
+          <a class="btn btn-ghost" href="DocumentDetail.html">Huỷ</a>
+          <button class="btn btn-gold" id="confirm">Xác nhận thay thế</button>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script src="assets/shell.js"></script>
+<script>
+(function () {
+  renderShell({ active: 'replace' });
+  const I = window.ICON;
+  document.getElementById('ps').innerHTML = I.search + '<input placeholder="Tìm văn bản cần thay thế…" value="quy chế chất lượng">';
+  document.getElementById('arrow').innerHTML = I.replace;
+  document.getElementById('dropic').innerHTML = I.upload;
+  document.getElementById('suggest').innerHTML = `<div class="t-2xs mut" style="padding:8px 12px 4px;font-weight:600">Gợi ý cùng chủ đề</div>` +
+    [['QĐ-2021/088', 'Quy chế quản lý chất lượng (2021)', 'Đang chọn'],
+     ['QĐ-2019/045', 'Quy chế kiểm soát chất lượng (2019)', ''],
+     ['QT-QA-08', 'Quy trình QA phiên bản cũ', '']].map((s, i) => `
+      <div class="sg" style="${i === 0 ? 'background:var(--navy-050)' : ''}"><div class="ficon" style="width:24px;height:28px;border-radius:3px;background:var(--gray-150);color:var(--gray-500);display:grid;place-items:center;font-size:7px;font-weight:800">PDF</div>
+        <div style="flex:1"><div class="num">${s[0]}</div><div class="t-xs">${s[1]}</div></div>
+        ${s[2] ? `<span class="badge badge-navy" style="padding:2px 7px">${s[2]}</span>` : ''}</div>`).join('');
+
+  document.getElementById('confirm').addEventListener('click', function () {
+    this.textContent = '✓ Đã thay thế thành công';
+    this.classList.remove('btn-gold'); this.style.background = 'var(--success-500)'; this.style.color = '#fff';
+  });
+})();
+</script>
+</body>
+</html>

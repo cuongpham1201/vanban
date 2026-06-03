@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chi tiết văn bản · BHL DMS</title>
+<link rel="stylesheet" href="assets/ds.css">
+<style>
+  html, body { height: 100%; }
+  .screen { display: flex; flex-direction: column; height: 100vh; }
+
+  .dochead { background: var(--white); border-bottom: 1px solid var(--gray-200); padding: 14px var(--sp-6); }
+  .crumb { font-size: var(--fs-xs); color: var(--gray-500); margin-bottom: 8px; }
+  .crumb a { color: var(--gray-500); text-decoration: none; }
+  .crumb a:hover { color: var(--navy-600); }
+  .dochead .titlerow { display: flex; align-items: center; gap: 14px; }
+  .dochead .ficon { width: 40px; height: 46px; border-radius: var(--r-sm); background: var(--red-100); color: var(--red-600); display: grid; place-items: center; font-size: 10px; font-weight: 800; flex-shrink: 0; }
+  .dochead h1 { margin: 0; font-size: 20px; font-weight: 650; line-height: 1.3; }
+  .dochead .num { font-family: var(--font-mono); font-size: var(--fs-xs); font-weight: 600; color: var(--navy-600); }
+  .dochead .actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+
+  .split { display: flex; flex: 1; min-height: 0; }
+  .viewer { flex: 1; min-width: 0; background: #4a5462; display: flex; flex-direction: column; }
+  .vtoolbar { height: 46px; background: var(--gray-800); display: flex; align-items: center; gap: 14px; padding: 0 16px; color: #cfd6df; font-size: var(--fs-xs); }
+  .vtoolbar .iconbtn { width: 30px; height: 30px; border-radius: var(--r-xs); display: grid; place-items: center; cursor: pointer; color: #cfd6df; }
+  .vtoolbar .iconbtn:hover { background: rgba(255,255,255,.1); }
+  .vtoolbar svg { width: 17px; height: 17px; }
+  .vscroll { flex: 1; overflow: auto; padding: 26px; display: flex; flex-direction: column; align-items: center; gap: 20px; }
+  .pdfpage { width: 560px; max-width: 100%; aspect-ratio: 1 / 1.414; background: #fff; box-shadow: 0 6px 24px rgba(0,0,0,.3); padding: 54px 56px; font-size: 12px; color: #333; }
+  .pdfpage .gov { text-align: center; line-height: 1.7; }
+  .pdfpage .ln { height: 9px; background: #eceff3; border-radius: 3px; margin: 8px 0; }
+
+  .meta { width: 416px; flex-shrink: 0; background: var(--white); border-left: 1px solid var(--gray-200); display: flex; flex-direction: column; }
+  .mtabs { display: flex; border-bottom: 1px solid var(--gray-200); padding: 0 12px; overflow-x: auto; }
+  .mtab { padding: 13px 12px; font-size: var(--fs-sm); font-weight: 600; color: var(--gray-500); cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; }
+  .mtab.on { color: var(--navy-600); border-color: var(--navy-600); }
+  .mtab .n { font-size: var(--fs-2xs); background: var(--gray-150); color: var(--gray-600); border-radius: var(--r-full); padding: 1px 6px; margin-left: 4px; }
+  .mcontent { flex: 1; overflow: auto; padding: var(--sp-5); }
+  .mpane { display: none; } .mpane.on { display: block; }
+
+  .mrow { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--gray-100); font-size: var(--fs-sm); }
+  .mrow .k { width: 134px; flex-shrink: 0; color: var(--gray-500); font-size: var(--fs-xs); }
+  .mrow .v { color: var(--ink); font-weight: 500; flex: 1; }
+  .sec-block { background: var(--gray-050); border: 1px solid var(--gray-150); border-radius: var(--r-md); padding: 14px; margin-bottom: 14px; }
+  .sec-block .h { font-size: var(--fs-2xs); font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--gray-500); margin-bottom: 10px; }
+
+  .relrow, .attrow { display: flex; align-items: center; gap: 11px; padding: 11px; border: 1px solid var(--gray-200); border-radius: var(--r-md); margin-bottom: 9px; }
+  .relrow .ficon, .attrow .ficon { width: 28px; height: 32px; border-radius: var(--r-xs); display: grid; place-items: center; font-size: 7px; font-weight: 800; background: var(--navy-050); color: var(--navy-600); flex-shrink: 0; }
+  .relrow .num, .attrow .nm { font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 600; color: var(--navy-600); }
+
+  .tl { position: relative; padding-left: 26px; }
+  .tl::before { content: ''; position: absolute; left: 8px; top: 4px; bottom: 4px; width: 2px; background: var(--gray-200); }
+  .tlitem { position: relative; padding: 0 0 18px; }
+  .tlitem::before { content: ''; position: absolute; left: -22px; top: 3px; width: 11px; height: 11px; border-radius: 50%; background: var(--white); border: 2px solid var(--navy-500); }
+  .tlitem.gold::before { border-color: var(--gold-500); }
+  .tlitem .when { font-size: var(--fs-2xs); color: var(--gray-400); }
+  .tlitem .what { font-size: var(--fs-sm); margin-top: 2px; }
+
+  @media (max-width: 1000px) { .meta { width: 360px; } .pdfpage { width: 440px; } }
+  @media (max-width: 820px) { .split { flex-direction: column; } .meta { width: 100%; border-left: 0; border-top: 1px solid var(--gray-200); } }
+</style>
+</head>
+<body>
+<div class="screen" data-screen-label="Document Detail">
+  <header data-shell="appbar"></header>
+  <div class="appbody" style="flex:1; min-height:0;">
+    <aside data-shell="sidenav"></aside>
+    <main class="maincol" style="display:flex; flex-direction:column; padding:0; overflow:hidden;">
+
+      <div class="dochead">
+        <div class="crumb"><a href="SearchCenter.html">Tìm kiếm</a> / <a href="#">Văn bản nội bộ</a> / <span>QĐ-2024/142</span></div>
+        <div class="titlerow">
+          <div class="ficon">PDF</div>
+          <div style="flex:1;min-width:0">
+            <div class="row gap-2" style="margin-bottom:3px">
+              <span class="num">QĐ-2024/142</span>
+              <span class="badge badge-ok">Hiệu lực</span>
+              <span class="badge badge-warn"><span class="dot"></span>Mật</span>
+              <span class="badge badge-ok"><span class="dot"></span>Có bản mềm</span>
+            </div>
+            <h1>Quy chế quản lý chất lượng sản phẩm bia và nước giải khát</h1>
+          </div>
+          <div class="actions" id="actions"></div>
+        </div>
+      </div>
+
+      <div class="split">
+        <section class="viewer">
+          <div class="vtoolbar" id="vtoolbar"></div>
+          <div class="vscroll scrollbar">
+            <div class="pdfpage">
+              <div class="gov" style="font-size:11px"><b>CÔNG TY CỔ PHẦN BIA HẠ LONG</b><br>PHÒNG QA/QC<br>—————<br><b>Số: QĐ-2024/142</b></div>
+              <div class="gov" style="margin:18px 0"><b>CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM</b><br>Độc lập – Tự do – Hạnh phúc<br><i>Hạ Long, ngày 18 tháng 9 năm 2024</i></div>
+              <div style="text-align:center;font-weight:700;font-size:15px;margin:22px 0 6px">QUYẾT ĐỊNH</div>
+              <div style="text-align:center;font-style:italic;margin-bottom:20px">V/v ban hành Quy chế quản lý chất lượng sản phẩm</div>
+              <div style="text-align:center;font-weight:700;margin-bottom:16px">TỔNG GIÁM ĐỐC CÔNG TY CỔ PHẦN BIA HẠ LONG</div>
+              <div class="ln" style="width:100%"></div><div class="ln" style="width:96%"></div><div class="ln" style="width:88%"></div>
+              <div class="ln" style="width:100%"></div><div class="ln" style="width:72%"></div>
+              <div style="margin-top:18px;font-weight:700">QUYẾT ĐỊNH:</div>
+              <div class="ln" style="width:94%"></div><div class="ln" style="width:100%"></div><div class="ln" style="width:64%"></div>
+              <div class="ln" style="width:90%"></div><div class="ln" style="width:80%"></div>
+            </div>
+            <div class="pdfpage" style="opacity:.55"></div>
+          </div>
+        </section>
+
+        <aside class="meta">
+          <div class="mtabs" id="mtabs"></div>
+          <div class="mcontent scrollbar" id="mcontent"></div>
+        </aside>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script src="assets/shell.js"></script>
+<script>
+(function () {
+  renderShell({ active: 'docs' });
+  const I = window.ICON;
+
+  document.getElementById('actions').innerHTML = `
+    <button class="btn btn-ghost btn-icon" title="Ghim">${I.pin}</button>
+    <button class="btn btn-ghost btn-icon" title="Chia sẻ">${I.share}</button>
+    <a class="btn btn-ghost" href="ReplaceDocument.html">${I.replace} Thay thế</a>
+    <button class="btn btn-primary">${I.download} Tải xuống</button>`;
+
+  document.getElementById('vtoolbar').innerHTML = `
+    <span>Trang 1 / 6</span>
+    <div style="flex:1"></div>
+    <div class="iconbtn" title="Thu nhỏ">−</div><span>100%</span><div class="iconbtn" title="Phóng to">+</div>
+    <div style="width:1px;height:20px;background:rgba(255,255,255,.15)"></div>
+    <div class="iconbtn" title="Tải xuống">${I.download}</div>
+    <div class="iconbtn" title="In">${I.docs}</div>
+    <div class="iconbtn" title="Toàn màn hình">${I.grid}</div>`;
+
+  const tabs = [
+    ['info', 'Thông tin', ''],
+    ['att', 'Đính kèm', '3'],
+    ['rel', 'Liên quan', '4'],
+    ['rep', 'Thay thế', '2'],
+    ['tl', 'Lịch sử', ''],
+  ];
+  document.getElementById('mtabs').innerHTML = tabs.map((t, i) =>
+    `<div class="mtab ${i === 0 ? 'on' : ''}" data-t="${t[0]}">${t[1]}${t[2] ? `<span class="n">${t[2]}</span>` : ''}</div>`).join('');
+
+  const meta = [
+    ['Trích yếu', 'Ban hành Quy chế quản lý chất lượng áp dụng toàn bộ dây chuyền sản xuất, kiểm soát nguyên liệu đầu vào, chỉ tiêu lý-hoá-vi sinh và quy trình xử lý sản phẩm không đạt.'],
+    ['Số văn bản', 'QĐ-2024/142'], ['Người ký', 'Phạm Đức Toàn · Tổng Giám đốc'],
+    ['Ngày ban hành', '18/09/2024'], ['Ngày hết hiệu lực', '— (không thời hạn)'],
+    ['Đơn vị phát hành', 'Phòng QA/QC'], ['Đơn vị sở hữu', 'Phòng QA/QC'],
+  ];
+  const metaV2 = [
+    ['Nhóm tài liệu', 'Văn bản nội bộ'], ['Loại VB pháp lý', 'Quyết định'],
+    ['Loại tài liệu', 'Quy chế'], ['Chủ đề nghiệp vụ', 'Chất lượng – QA/QC'],
+  ];
+  const paneInfo = `
+    ${meta.map(m => `<div class="mrow"><span class="k">${m[0]}</span><span class="v">${m[1]}</span></div>`).join('')}
+    <div class="sec-block" style="margin-top:16px">
+      <div class="h">Metadata V2 · Phân loại</div>
+      ${metaV2.map(m => `<div class="row between" style="padding:5px 0"><span class="t-xs mut">${m[0]}</span><span class="t-sm" style="font-weight:600">${m[1]}</span></div>`).join('')}
+    </div>
+    <div class="sec-block" style="background:var(--gold-050);border-color:var(--gold-200)">
+      <div class="h" style="color:var(--gold-700)">Độ tin cậy metadata</div>
+      <div class="row gap-3" style="margin-bottom:8px">
+        <div class="conf-bar" style="width:120px;height:8px"><i style="width:96%;background:var(--conf-high)"></i></div>
+        <span class="t-sm" style="font-weight:700;color:var(--conf-high)">96% · Cao</span>
+      </div>
+      <div class="row between" style="padding:4px 0"><span class="t-xs mut">Nguồn metadata</span><span class="t-xs" style="font-weight:600">OCR + xác thực thủ công</span></div>
+      <div class="row between" style="padding:4px 0"><span class="t-xs mut">File nguồn chỉnh sửa</span><span class="badge badge-ok" style="padding:2px 8px">✎ Có (.docx)</span></div>
+    </div>
+    <div class="mrow" style="border:0"><span class="k">Tags</span><span class="v row gap-1 wrap">${['chất lượng', 'QA', 'ISO 22000', 'sản xuất'].map(t => `<span class="tag">#${t}</span>`).join('')}</span></div>`;
+
+  const paneAtt = `
+    ${[['Phụ lục 1 – Chỉ tiêu lý hoá.xlsx', 'XLSX', '248 KB'], ['Phụ lục 2 – Biểu mẫu NCR.docx', 'DOCX', '92 KB'], ['Bản scan có chữ ký.pdf', 'PDF', '3,4 MB']].map(a => `
+      <div class="attrow"><div class="ficon">${a[1]}</div>
+        <div style="flex:1"><div class="t-sm" style="font-weight:600">${a[0]}</div><div class="t-2xs mut">${a[2]}</div></div>
+        <button class="btn btn-ghost btn-icon">${I.download}</button></div>`).join('')}`;
+
+  const paneRel = `
+    <div class="t-xs mut" style="font-weight:600;margin-bottom:10px">Văn bản liên quan</div>
+    ${[['QT-QA-14', 'Quy trình xử lý sản phẩm không phù hợp'], ['QĐ-NS-2024/056', 'Nội quy lao động'], ['ISO-22000', 'Tài liệu hệ thống ISO 22000:2018'], ['BM-QA-07', 'Biểu mẫu kiểm tra chất lượng']].map(r => `
+      <a class="relrow" href="#" style="text-decoration:none"><div class="ficon">DOC</div>
+        <div style="flex:1"><div class="num">${r[0]}</div><div class="t-sm" style="font-weight:500;color:var(--ink)">${r[1]}</div></div>${I.chevright}</a>`).join('')}`;
+
+  const paneRep = `
+    <div class="sec-block" style="background:var(--navy-050);border-color:var(--navy-100)">
+      <div class="h" style="color:var(--navy-600)">${I.replace} Văn bản này thay thế</div>
+      <a class="relrow" href="#" style="background:#fff;margin:0;text-decoration:none"><div class="ficon" style="background:var(--gray-150);color:var(--gray-500)">PDF</div>
+        <div style="flex:1"><div class="num">QĐ-2021/088</div><div class="t-sm">Quy chế quản lý chất lượng (2021)</div></div>
+        <span class="badge badge-danger">Hết hiệu lực</span></a>
+    </div>
+    <div class="sec-block">
+      <div class="h">Bị thay thế bởi</div>
+      <div class="t-sm mut" style="padding:8px 2px">Chưa có — đây là phiên bản mới nhất.</div>
+    </div>`;
+
+  const paneTl = `<div class="tl">
+    ${[['gold', '18/09/2024 · 09:12', '<b>Phạm Đức Toàn</b> ký ban hành — thay thế QĐ-2021/088'],
+       ['', '17/09/2024 · 16:40', '<b>Nguyễn Thị Lan</b> tải lên bản PDF có chữ ký + file nguồn .docx'],
+       ['', '17/09/2024 · 15:02', 'Hệ thống trích xuất metadata bằng OCR — độ tin cậy 88%'],
+       ['', '17/09/2024 · 15:30', '<b>Trần Thị Hương</b> xác thực & nâng độ tin cậy lên 96%'],
+       ['', '17/09/2024 · 11:20', '<b>Nguyễn Thị Lan</b> tạo bản nháp']].map(t => `
+      <div class="tlitem ${t[0]}"><div class="when">${t[1]}</div><div class="what">${t[2]}</div></div>`).join('')}
+  </div>`;
+
+  const panes = { info: paneInfo, att: paneAtt, rel: paneRel, rep: paneRep, tl: paneTl };
+  const mc = document.getElementById('mcontent');
+  function show(t) {
+    mc.innerHTML = `<div class="mpane on">${panes[t]}</div>`;
+    document.querySelectorAll('.mtab').forEach(x => x.classList.toggle('on', x.dataset.t === t));
+  }
+  show('info');
+  document.getElementById('mtabs').addEventListener('click', e => { const t = e.target.closest('.mtab'); if (t) show(t.dataset.t); });
+})();
+</script>
+</body>
+</html>

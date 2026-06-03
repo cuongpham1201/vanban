@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Search Center · BHL DMS</title>
+<link rel="stylesheet" href="assets/ds.css">
+<style>
+  html, body { height: 100%; }
+  .screen { display: flex; flex-direction: column; height: 100vh; }
+
+  /* sub-toolbar */
+  .subbar {
+    display: flex; align-items: center; gap: var(--sp-4);
+    padding: 12px var(--sp-6); background: var(--white);
+    border-bottom: 1px solid var(--gray-200);
+  }
+  .subbar h1 { font-size: var(--fs-h3); margin: 0; font-weight: 650; }
+  .seg { display: flex; background: var(--gray-100); border-radius: var(--r-sm); padding: 3px; gap: 2px; }
+  .seg button {
+    display: inline-flex; align-items: center; gap: 6px; border: 0; background: transparent;
+    font: inherit; font-size: var(--fs-xs); font-weight: 600; color: var(--gray-600);
+    padding: 6px 11px; border-radius: var(--r-xs); cursor: pointer;
+  }
+  .seg button svg { width: 15px; height: 15px; }
+  .seg button.on { background: var(--white); color: var(--navy-600); box-shadow: var(--sh-1); }
+
+  /* search bar row */
+  .searchrow { padding: 14px var(--sp-6); background: var(--white); border-bottom: 1px solid var(--gray-200); }
+  .bigsearch {
+    display: flex; align-items: center; gap: 10px; max-width: 760px;
+    border: 1px solid var(--gray-300); border-radius: var(--r-md); padding: 11px 14px; background: var(--white);
+    box-shadow: var(--sh-1);
+  }
+  .bigsearch svg { width: 20px; height: 20px; color: var(--gray-500); }
+  .bigsearch input { flex: 1; border: 0; outline: none; font: inherit; font-size: 15px; color: var(--ink); }
+  .activechips { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; align-items: center; }
+
+  /* layout */
+  .layout { display: flex; flex: 1; min-height: 0; }
+  .filters {
+    width: 268px; flex-shrink: 0; background: var(--white); border-right: 1px solid var(--gray-200);
+    overflow: auto; padding: var(--sp-5) var(--sp-5) var(--sp-10);
+  }
+  .listcol { flex: 1; min-width: 0; overflow: auto; background: var(--gray-050); }
+  .preview {
+    width: 440px; flex-shrink: 0; background: var(--white); border-left: 1px solid var(--gray-200);
+    overflow: auto; display: flex; flex-direction: column;
+  }
+
+  /* filter group */
+  .fgroup { border-bottom: 1px solid var(--gray-150); padding-bottom: 16px; margin-bottom: 16px; }
+  .fgroup:last-child { border-bottom: 0; }
+  .fgroup > .fhead {
+    display: flex; align-items: center; justify-content: space-between; cursor: pointer;
+    font-size: var(--fs-xs); font-weight: 700; letter-spacing: .03em; text-transform: uppercase;
+    color: var(--gray-600); margin-bottom: 12px;
+  }
+  .fhead svg { width: 16px; height: 16px; color: var(--gray-400); }
+  .frow { display: flex; align-items: center; gap: 9px; padding: 5px 0; font-size: var(--fs-sm); color: var(--gray-700); cursor: pointer; }
+  .frow:hover { color: var(--ink); }
+  .frow input { width: 15px; height: 15px; accent-color: var(--navy-600); }
+  .frow .n { margin-left: auto; font-size: var(--fs-2xs); color: var(--gray-400); font-weight: 600; }
+
+  /* list rows */
+  .listhead {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px var(--sp-6); position: sticky; top: 0; background: var(--gray-050);
+    border-bottom: 1px solid var(--gray-200); z-index: 5;
+  }
+  .doclist { padding: 8px 12px 40px; display: flex; flex-direction: column; gap: 8px; }
+  .docrow {
+    background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--r-md);
+    padding: 14px 16px; cursor: pointer; transition: all .12s; box-shadow: var(--sh-1);
+  }
+  .docrow:hover { border-color: var(--navy-300); box-shadow: var(--sh-2); }
+  .docrow.sel { border-color: var(--navy-500); box-shadow: 0 0 0 1px var(--navy-500), var(--sh-2); }
+  .docrow .top { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .ficon {
+    width: 34px; height: 38px; border-radius: var(--r-xs); flex-shrink: 0; position: relative;
+    background: var(--red-100); color: var(--red-600); display: grid; place-items: center;
+    font-size: 8px; font-weight: 800; letter-spacing: .03em;
+  }
+  .ficon.doc { background: var(--navy-050); color: var(--navy-600); }
+  .docrow .num { font-family: var(--font-mono); font-size: var(--fs-xs); font-weight: 600; color: var(--navy-600); }
+  .docrow h3 { margin: 0; font-size: var(--fs-body); font-weight: 600; line-height: 1.35; color: var(--ink); }
+  .docrow .meta { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; font-size: var(--fs-xs); color: var(--gray-500); }
+  .docrow .meta b { color: var(--gray-700); font-weight: 600; }
+  .docrow .rowbadges { display: flex; gap: 6px; margin-left: auto; align-items: center; }
+
+  /* preview */
+  .pv-head { padding: var(--sp-5); border-bottom: 1px solid var(--gray-200); }
+  .pv-doc { margin: var(--sp-5); border: 1px solid var(--gray-200); border-radius: var(--r-md); overflow: hidden; box-shadow: var(--sh-1); }
+  .pv-doc .page { aspect-ratio: 1 / 1.32; background: #fff; padding: 26px 24px; font-size: 9px; color: #444; }
+  .pv-doc .page .gov { text-align: center; font-size: 8px; line-height: 1.5; }
+  .pv-meta { padding: 0 var(--sp-5) var(--sp-8); }
+  .mrow { display: flex; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--gray-100); font-size: var(--fs-sm); }
+  .mrow .k { width: 130px; flex-shrink: 0; color: var(--gray-500); font-size: var(--fs-xs); }
+  .mrow .v { color: var(--ink); font-weight: 500; }
+  .pvtabs { display: flex; gap: 4px; padding: 0 var(--sp-5); border-bottom: 1px solid var(--gray-200); }
+  .pvtab { padding: 11px 4px; margin-right: 14px; font-size: var(--fs-sm); font-weight: 600; color: var(--gray-500); cursor: pointer; border-bottom: 2px solid transparent; }
+  .pvtab.on { color: var(--navy-600); border-color: var(--navy-600); }
+
+  /* card grid mode */
+  .cardgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; padding: 18px var(--sp-6) 48px; }
+  .dcard { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--r-md); overflow: hidden; cursor: pointer; box-shadow: var(--sh-1); transition: all .12s; }
+  .dcard:hover { border-color: var(--navy-300); box-shadow: var(--sh-2); transform: translateY(-2px); }
+  .dcard .thumb { height: 124px; background: var(--gray-100); border-bottom: 1px solid var(--gray-150); padding: 14px; }
+  .dcard .thumb .mini { background: #fff; height: 100%; border-radius: 3px; box-shadow: var(--sh-1); }
+  .dcard .body { padding: 12px 14px; }
+
+  /* layout-mode behaviors */
+  .layout[data-mode="list"] .filters,
+  .layout[data-mode="cards"] .filters { display: none; }
+  .layout[data-mode="cards"] .preview { display: none; }
+  .layout[data-mode="3col"] .doclist .docrow .rowbadges .conf { display: none; }
+  .topfilters { display: none; }
+  .layout[data-mode="list"] ~ x { }
+  .doclist.hidden, .cardgrid.hidden { display: none; }
+
+  /* top filter bar (modes list/cards) */
+  .topbar2 { display: none; padding: 10px var(--sp-6); background: var(--white); border-bottom: 1px solid var(--gray-200); gap: 8px; align-items: center; flex-wrap: wrap; }
+  .topbar2 svg { width: 15px; height: 15px; vertical-align: -2px; }
+  .screen[data-mode="list"] .topbar2, .screen[data-mode="cards"] .topbar2 { display: flex; }
+  .screen[data-mode="3col"] .filters { display: block; }
+  .screen[data-mode="list"] .filters, .screen[data-mode="cards"] .filters { display: none; }
+  .screen[data-mode="cards"] .preview { display: none; }
+
+  @media (max-width: 1200px) { .preview { width: 380px; } .filters { width: 230px; } }
+  @media (max-width: 980px) {
+    .filters, .preview { display: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="screen" data-mode="3col" data-screen-label="Search Center">
+  <header data-shell="appbar"></header>
+  <div class="appbody" style="flex:1; min-height:0;">
+    <aside data-shell="sidenav"></aside>
+    <main class="maincol" style="display:flex; flex-direction:column; padding:0; background:var(--white);">
+
+      <div class="subbar">
+        <h1>Trung tâm tìm kiếm</h1>
+        <span class="badge badge-neutral" id="resultCount">4.182 văn bản</span>
+        <div style="flex:1"></div>
+        <div class="seg" id="modeSeg">
+          <button data-mode="3col" class="on">__COLS__ 3 cột</button>
+          <button data-mode="list">__LIST__ Danh sách</button>
+          <button data-mode="cards">__GRID__ Lưới thẻ</button>
+        </div>
+      </div>
+
+      <div class="searchrow">
+        <div class="bigsearch">
+          __SEARCH__
+          <input id="q" placeholder="Tìm theo trích yếu, số văn bản, người ký, tags…" value="quy chế chất lượng">
+          <span class="kbd" style="font-size:var(--fs-2xs); color:var(--gray-400); background:var(--gray-100); padding:3px 7px; border-radius:var(--r-xs)">Ctrl K</span>
+        </div>
+        <div class="activechips">
+          <span class="t-xs mut" style="font-weight:600">Bộ lọc:</span>
+          <span class="chip active">Năm 2024 <span class="x">×</span></span>
+          <span class="chip active">Có bản mềm <span class="x">×</span></span>
+          <span class="chip active">Phòng QA/QC <span class="x">×</span></span>
+          <span class="chip" style="border-style:dashed; color:var(--gray-500)">__PLUS__ Thêm bộ lọc</span>
+          <span class="t-xs mut" style="margin-left:auto; cursor:pointer; color:var(--navy-600); font-weight:600">__STAR__ Lưu bộ lọc này</span>
+        </div>
+      </div>
+
+      <div class="topbar2" id="topbar2"></div>
+
+      <div class="layout" data-screen-label="Search results">
+        <aside class="filters scrollbar" id="filterPanel"></aside>
+        <section class="listcol scrollbar">
+          <div class="listhead">
+            <div class="row gap-3">
+              <span class="t-sm" style="font-weight:600">Kết quả</span>
+              <span class="t-xs mut" id="sortLabel">Sắp xếp: Liên quan nhất</span>
+            </div>
+            <div class="row gap-2 t-xs mut">
+              <span style="cursor:pointer">Mới nhất</span>·<span style="cursor:pointer">Số VB</span>·<span style="cursor:pointer; color:var(--navy-600); font-weight:600">Liên quan</span>
+            </div>
+          </div>
+          <div class="doclist" id="docList"></div>
+          <div class="cardgrid hidden" id="cardGrid"></div>
+        </section>
+        <aside class="preview scrollbar" id="previewPane"></aside>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<script src="assets/shell.js"></script>
+<script src="assets/sc-data.js"></script>
+<script src="assets/sc-app.js"></script>
+</body>
+</html>

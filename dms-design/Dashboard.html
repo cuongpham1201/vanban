@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tổng quan · BHL DMS</title>
+<link rel="stylesheet" href="assets/ds.css">
+<style>
+  html, body { height: 100%; }
+  .screen { display: flex; flex-direction: column; height: 100vh; }
+  .page { padding: var(--sp-6) var(--sp-8) var(--sp-12); max-width: 1280px; }
+  .pagehead { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: var(--sp-6); }
+  .pagehead h1 { margin: 0 0 4px; font-size: 26px; font-weight: 700; letter-spacing: -.01em; }
+
+  .kpis { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; margin-bottom: var(--sp-6); }
+  .kpi { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--r-lg); padding: 16px 16px 14px; box-shadow: var(--sh-1); position: relative; overflow: hidden; }
+  .kpi .ic { width: 32px; height: 32px; border-radius: var(--r-sm); display: grid; place-items: center; margin-bottom: 12px; }
+  .kpi .ic svg { width: 18px; height: 18px; }
+  .kpi .num { font-size: 26px; font-weight: 700; letter-spacing: -.02em; line-height: 1; }
+  .kpi .lbl { font-size: var(--fs-xs); color: var(--gray-500); margin-top: 6px; font-weight: 500; }
+  .kpi .delta { position: absolute; top: 16px; right: 16px; font-size: var(--fs-2xs); font-weight: 700; }
+
+  .grid2 { display: grid; grid-template-columns: 1.6fr 1fr; gap: 16px; }
+  .widget { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--r-lg); box-shadow: var(--sh-1); margin-bottom: 16px; }
+  .whead { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; border-bottom: 1px solid var(--gray-150); }
+  .whead h2 { margin: 0; font-size: var(--fs-h3); font-weight: 650; }
+  .whead a { font-size: var(--fs-xs); color: var(--navy-600); font-weight: 600; text-decoration: none; }
+  .wbody { padding: 6px 18px 14px; }
+
+  .li { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--gray-100); }
+  .li:last-child { border-bottom: 0; }
+  .li .ficon { width: 30px; height: 34px; border-radius: var(--r-xs); flex-shrink: 0; display: grid; place-items: center; font-size: 8px; font-weight: 800; background: var(--red-100); color: var(--red-600); }
+  .li .ficon.doc { background: var(--navy-050); color: var(--navy-600); }
+  .li .num { font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 600; color: var(--navy-600); }
+  .li .ti { font-size: var(--fs-sm); font-weight: 500; color: var(--ink); }
+  .li .sub { font-size: var(--fs-2xs); color: var(--gray-500); }
+
+  .bar { display: flex; align-items: center; gap: 12px; padding: 9px 0; }
+  .bar .lbl { width: 150px; font-size: var(--fs-sm); color: var(--gray-700); flex-shrink: 0; }
+  .bar .track { flex: 1; height: 8px; background: var(--gray-150); border-radius: var(--r-full); overflow: hidden; }
+  .bar .track > i { display: block; height: 100%; background: var(--navy-500); border-radius: var(--r-full); }
+  .bar .v { width: 42px; text-align: right; font-size: var(--fs-xs); font-weight: 600; color: var(--gray-600); }
+
+  .act { display: flex; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--gray-100); font-size: var(--fs-sm); }
+  .act:last-child { border-bottom: 0; }
+  .act .av { width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center; font-size: var(--fs-2xs); font-weight: 700; background: var(--navy-100); color: var(--navy-600); }
+
+  @media (max-width: 1100px) { .kpis { grid-template-columns: repeat(3, 1fr); } .grid2 { grid-template-columns: 1fr; } }
+  @media (max-width: 640px) { .kpis { grid-template-columns: repeat(2, 1fr); } .page { padding: var(--sp-4); } }
+</style>
+</head>
+<body>
+<div class="screen" data-screen-label="Dashboard">
+  <header data-shell="appbar"></header>
+  <div class="appbody" style="flex:1; min-height:0;">
+    <aside data-shell="sidenav"></aside>
+    <main class="maincol scrollbar">
+      <div class="page">
+        <div class="pagehead">
+          <div>
+            <h1>Chào buổi sáng, chị Lan 👋</h1>
+            <div class="t-sm mut">Tổng quan kho văn bản · Cập nhật lúc 08:24, Thứ Tư 04/06/2026</div>
+          </div>
+          <div class="row gap-2">
+            <button class="btn btn-ghost" id="b-export">Xuất báo cáo</button>
+            <a class="btn btn-gold" href="UploadWizard.html" id="b-upload">Tải lên văn bản</a>
+          </div>
+        </div>
+
+        <div class="kpis" id="kpis"></div>
+
+        <div class="grid2">
+          <div>
+            <div class="widget">
+              <div class="whead"><h2>Văn bản mới</h2><a href="SearchCenter.html">Xem tất cả →</a></div>
+              <div class="wbody" id="wNew"></div>
+            </div>
+            <div class="widget">
+              <div class="whead"><h2>Hoạt động gần đây</h2><a href="#">Nhật ký →</a></div>
+              <div class="wbody" id="wAct"></div>
+            </div>
+          </div>
+          <div>
+            <div class="widget">
+              <div class="whead"><h2>Sắp hết hiệu lực</h2><span class="badge badge-warn">23 văn bản</span></div>
+              <div class="wbody" id="wExp"></div>
+            </div>
+            <div class="widget">
+              <div class="whead"><h2>Top đơn vị phát hành</h2><a href="#">Năm 2025 →</a></div>
+              <div class="wbody" id="wTop"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script src="assets/shell.js"></script>
+<script>
+(function () {
+  renderShell({ active: 'dashboard' });
+  const I = window.ICON;
+  const C = { navy: ['var(--navy-050)', 'var(--navy-600)'], ok: ['var(--success-100)', 'var(--success-700)'],
+    danger: ['var(--danger-100)', 'var(--danger-700)'], warn: ['var(--warning-100)', 'var(--warning-700)'],
+    gold: ['var(--gold-100)', 'var(--gold-700)'], info: ['var(--info-100)', 'var(--info-700)'] };
+
+  const kpis = [
+    { n: '4.182', l: 'Tổng văn bản', ic: I.docs, c: 'navy', d: '+128', dc: 'var(--success-600)' },
+    { n: '3.396', l: 'Có bản mềm', ic: I.docs, c: 'ok', d: '81%', dc: 'var(--success-700)' },
+    { n: '786', l: 'Thiếu bản mềm', ic: I.upload, c: 'danger', d: '19%', dc: 'var(--danger-700)' },
+    { n: '512', l: 'Cần chuẩn hoá', ic: I.admin, c: 'warn', d: 'Metadata thấp', dc: 'var(--warning-700)' },
+    { n: '786', l: 'Hết hiệu lực', ic: I.archive, c: 'info', d: '', dc: '' },
+    { n: '23', l: 'Sắp hết hiệu lực', ic: I.clock, c: 'gold', d: '≤ 30 ngày', dc: 'var(--gold-700)' },
+  ];
+  document.getElementById('kpis').innerHTML = kpis.map(k => `
+    <div class="kpi">
+      ${k.d ? `<span class="delta" style="color:${k.dc || 'var(--gray-400)'}">${k.d}</span>` : ''}
+      <div class="ic" style="background:${C[k.c][0]};color:${C[k.c][1]}">${k.ic}</div>
+      <div class="num">${k.n}</div>
+      <div class="lbl">${k.l}</div>
+    </div>`).join('');
+
+  const newDocs = [
+    ['QĐ-2024/142', 'Quy chế quản lý chất lượng sản phẩm bia', 'Phòng QA/QC · hôm nay', 'pdf'],
+    ['CV-2025/078', 'Kế hoạch sản lượng và tiêu thụ Quý II/2025', 'Phòng Kinh doanh · hôm qua', 'doc'],
+    ['QT-QA-14', 'Quy trình xử lý sản phẩm không phù hợp', 'Phòng QA/QC · 2 ngày trước', 'doc'],
+    ['TB-2025/019', 'Lịch bảo trì tổng thể nhà máy 2025', 'Nhà máy Bia · 3 ngày trước', 'doc'],
+  ];
+  document.getElementById('wNew').innerHTML = newDocs.map(d => `
+    <a class="li" href="DocumentDetail.html" style="text-decoration:none">
+      <div class="ficon ${d[3] === 'doc' ? 'doc' : ''}">${d[3].toUpperCase()}</div>
+      <div style="flex:1;min-width:0"><div class="num">${d[0]}</div><div class="ti">${d[1]}</div></div>
+      <div class="sub">${d[2]}</div>
+    </a>`).join('');
+
+  const exp = [
+    ['CV-2025/078', 'Kế hoạch sản lượng Quý II', '30/06/2025', 26],
+    ['HD-DV-114', 'Hợp đồng dịch vụ vệ sinh CN', '15/07/2025', 41],
+    ['QĐ-2023/201', 'Quy định công tác phí', '31/07/2025', 57],
+  ];
+  document.getElementById('wExp').innerHTML = exp.map(d => `
+    <div class="li">
+      <div style="flex:1;min-width:0"><div class="num">${d[0]}</div><div class="ti" style="font-size:var(--fs-sm)">${d[1]}</div></div>
+      <div style="text-align:right"><div class="t-xs" style="font-weight:600;color:var(--warning-700)">${d[2]}</div><div class="sub">còn ${d[3]} ngày</div></div>
+    </div>`).join('');
+
+  const top = [['Phòng Kỹ thuật – CN', 512, 100], ['Nhà máy Bia', 470, 92], ['Phòng QA/QC', 386, 75], ['Phòng TC–KT', 332, 65], ['Phòng Kinh doanh', 298, 58]];
+  document.getElementById('wTop').innerHTML = top.map(t => `
+    <div class="bar"><div class="lbl">${t[0]}</div><div class="track"><i style="width:${t[2]}%"></i></div><div class="v">${t[1]}</div></div>`).join('');
+
+  const acts = [
+    ['NL', 'Nguyễn Thị Lan', 'đã tải lên', 'QĐ-2024/142', '08:12'],
+    ['PT', 'Phạm Đức Toàn', 'đã ký duyệt', 'CV-2025/078', 'hôm qua 16:40'],
+    ['LC', 'Lê Minh Cường', 'thay thế VB', 'QT-SX-09 ← QT-SX-08', 'hôm qua 14:05'],
+    ['TH', 'Trần Thị Hương', 'cập nhật metadata', '12 văn bản', '2 ngày trước'],
+  ];
+  document.getElementById('wAct').innerHTML = acts.map(a => `
+    <div class="act"><div class="av">${a[0]}</div>
+      <div style="flex:1"><b>${a[1]}</b> <span class="mut">${a[2]}</span> <span style="color:var(--navy-600);font-weight:600">${a[3]}</span></div>
+      <div class="sub">${a[4]}</div></div>`).join('');
+})();
+</script>
+</body>
+</html>

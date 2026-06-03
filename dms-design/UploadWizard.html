@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tải lên văn bản · BHL DMS</title>
+<link rel="stylesheet" href="assets/ds.css">
+<style>
+  html, body { height: 100%; }
+  .screen { display: flex; flex-direction: column; height: 100vh; }
+  .wzwrap { max-width: 880px; margin: 0 auto; padding: var(--sp-8) var(--sp-6) var(--sp-12); width: 100%; }
+
+  .stepper { display: flex; align-items: center; margin-bottom: var(--sp-8); }
+  .step { display: flex; align-items: center; gap: 10px; }
+  .step .dot { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: var(--fs-sm); font-weight: 700; background: var(--gray-150); color: var(--gray-500); flex-shrink: 0; }
+  .step .dot svg { width: 16px; height: 16px; }
+  .step .lbl { font-size: var(--fs-sm); font-weight: 600; color: var(--gray-500); white-space: nowrap; }
+  .step.on .dot { background: var(--navy-600); color: #fff; }
+  .step.on .lbl { color: var(--navy-700); }
+  .step.done .dot { background: var(--success-500); color: #fff; }
+  .step.done .lbl { color: var(--gray-700); }
+  .stepline { flex: 1; height: 2px; background: var(--gray-200); margin: 0 14px; }
+  .stepline.done { background: var(--success-500); }
+
+  .panel { display: none; }
+  .panel.on { display: block; animation: fade .2s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } }
+
+  .dropzone { border: 2px dashed var(--gray-300); border-radius: var(--r-lg); background: var(--white); padding: 48px; text-align: center; cursor: pointer; transition: all .15s; }
+  .dropzone:hover { border-color: var(--navy-400); background: var(--navy-050); }
+  .dropzone .big { width: 56px; height: 56px; border-radius: 50%; background: var(--navy-050); color: var(--navy-600); display: grid; place-items: center; margin: 0 auto 16px; }
+  .dropzone .big svg { width: 26px; height: 26px; }
+
+  .filecard { display: flex; align-items: center; gap: 14px; padding: 16px; border: 1px solid var(--gray-200); border-radius: var(--r-md); background: var(--white); margin-top: 16px; box-shadow: var(--sh-1); }
+  .filecard .ficon { width: 38px; height: 44px; border-radius: var(--r-xs); background: var(--red-100); color: var(--red-600); display: grid; place-items: center; font-size: 9px; font-weight: 800; }
+
+  .ai-note { display: flex; gap: 12px; padding: 14px 16px; background: var(--gold-050); border: 1px solid var(--gold-200); border-radius: var(--r-md); margin-bottom: 20px; }
+  .ai-note .ic { width: 30px; height: 30px; border-radius: var(--r-sm); background: var(--gold-500); color: var(--navy-900); display: grid; place-items: center; flex-shrink: 0; font-weight: 800; }
+
+  .fgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 20px; }
+  .fgrid .full { grid-column: 1 / -1; }
+  .lblrow { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .conf-mini { font-size: var(--fs-2xs); font-weight: 600; display: inline-flex; align-items: center; gap: 5px; }
+
+  .rev-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 28px; }
+  .rev { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--gray-100); font-size: var(--fs-sm); }
+  .rev .k { color: var(--gray-500); font-size: var(--fs-xs); }
+  .rev .v { font-weight: 600; text-align: right; }
+
+  .navbtns { display: flex; justify-content: space-between; margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--gray-200); }
+
+  .success { text-align: center; padding: 30px 0; }
+  .success .check { width: 72px; height: 72px; border-radius: 50%; background: var(--success-100); color: var(--success-700); display: grid; place-items: center; margin: 0 auto 18px; }
+  .success .check svg { width: 36px; height: 36px; }
+  @media (max-width: 680px) { .fgrid, .rev-grid { grid-template-columns: 1fr; } .step .lbl { display: none; } }
+</style>
+</head>
+<body>
+<div class="screen" data-screen-label="Upload Wizard">
+  <header data-shell="appbar"></header>
+  <div class="appbody" style="flex:1; min-height:0;">
+    <aside data-shell="sidenav"></aside>
+    <main class="maincol scrollbar">
+      <div class="wzwrap">
+        <h1 class="t-h1" style="margin:0 0 4px">Tải lên văn bản mới</h1>
+        <p class="t-sm mut" style="margin:0 0 28px">Hệ thống tự động trích xuất metadata từ file — bạn chỉ cần kiểm tra và xác nhận.</p>
+
+        <div class="stepper" id="stepper"></div>
+
+        <div class="card card-pad">
+          <!-- STEP 1 -->
+          <div class="panel on" data-p="0">
+            <div class="dropzone" id="drop">
+              <div class="big" id="dropic"></div>
+              <div class="t-h3" style="margin-bottom:4px">Kéo thả file vào đây hoặc bấm để chọn</div>
+              <div class="t-sm mut">Hỗ trợ PDF, DOCX, XLSX · Tối đa 50 MB / file · Có thể chọn nhiều file</div>
+            </div>
+            <div class="filecard">
+              <div class="ficon">PDF</div>
+              <div style="flex:1"><div class="t-sm" style="font-weight:600">QĐ-2024-142_Quy che chat luong.pdf</div>
+                <div class="t-2xs mut">2,8 MB · đã tải lên · <span style="color:var(--success-700);font-weight:600">✓ Quét virus sạch</span></div></div>
+              <div class="badge badge-ok">100%</div>
+            </div>
+            <label class="frow" style="display:flex;gap:10px;align-items:center;margin-top:16px;font-size:var(--fs-sm)">
+              <input type="checkbox" checked style="width:16px;height:16px;accent-color:var(--navy-600)">
+              <span>Đính kèm file nguồn chỉnh sửa (.docx) — giúp chuẩn hoá và tái sử dụng sau này</span>
+            </label>
+          </div>
+
+          <!-- STEP 2 -->
+          <div class="panel" data-p="1">
+            <div class="ai-note">
+              <div class="ic">AI</div>
+              <div><div class="t-sm" style="font-weight:600;margin-bottom:2px">Đã trích xuất tự động 9/12 trường metadata</div>
+                <div class="t-xs mut">Các trường có độ tin cậy thấp được tô vàng — vui lòng kiểm tra. Nguồn: OCR + nhận dạng mẫu văn bản.</div></div>
+            </div>
+            <div class="fgrid" id="metaForm"></div>
+          </div>
+
+          <!-- STEP 3 -->
+          <div class="panel" data-p="2">
+            <div class="row between" style="margin-bottom:16px">
+              <h2 class="t-h2" style="margin:0">Kiểm tra trước khi xuất bản</h2>
+              <span class="conf-mini" style="color:var(--conf-high)"><span class="conf-bar" style="width:60px"><i style="width:91%;background:var(--conf-high)"></i></span>Độ tin cậy 91%</span>
+            </div>
+            <div class="rev-grid" id="review"></div>
+            <div class="ai-note" style="background:var(--info-100);border-color:var(--info-100);margin:20px 0 0">
+              <div class="ic" style="background:var(--info-500);color:#fff">i</div>
+              <div class="t-sm">Phát hiện văn bản <b>QĐ-2021/088</b> cùng chủ đề. Bạn có muốn đánh dấu văn bản này <b>thay thế</b> nó không?
+                <div class="row gap-2" style="margin-top:10px"><button class="btn btn-subtle btn-sm">Bỏ qua</button><button class="btn btn-primary btn-sm">Đánh dấu thay thế</button></div></div>
+            </div>
+          </div>
+
+          <!-- STEP 4 -->
+          <div class="panel" data-p="3">
+            <div class="success">
+              <div class="check" id="checkic"></div>
+              <h2 class="t-h1" style="margin:0 0 6px">Đã xuất bản thành công!</h2>
+              <p class="t-body mut" style="margin:0 0 8px">Văn bản <b style="color:var(--navy-600);font-family:var(--font-mono)">QĐ-2024/142</b> đã được lưu vào kho và lập chỉ mục tìm kiếm.</p>
+              <div class="row gap-2 center" style="margin-top:22px">
+                <a class="btn btn-ghost" href="UploadWizard.html">Tải lên file khác</a>
+                <a class="btn btn-primary" href="DocumentDetail.html">Xem văn bản</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="navbtns" id="navbtns"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script src="assets/shell.js"></script>
+<script>
+(function () {
+  renderShell({ active: 'upload' });
+  const I = window.ICON;
+  document.getElementById('dropic').innerHTML = I.upload;
+  document.getElementById('checkic').innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m5 13 4 4L19 7"/></svg>';
+
+  const steps = ['Tải file', 'Metadata', 'Kiểm tra', 'Xuất bản'];
+  let cur = 0;
+  function renderStepper() {
+    const el = document.getElementById('stepper');
+    el.innerHTML = steps.map((s, i) => {
+      const cls = i < cur ? 'done' : i === cur ? 'on' : '';
+      const dot = i < cur ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m5 13 4 4L19 7"/></svg>' : (i + 1);
+      return `<div class="step ${cls}"><span class="dot">${dot}</span><span class="lbl">${s}</span></div>` +
+        (i < steps.length - 1 ? `<div class="stepline ${i < cur ? 'done' : ''}"></div>` : '');
+    }).join('');
+  }
+
+  // metadata form
+  const fields = [
+    ['Số văn bản', 'QĐ-2024/142', 96, false],
+    ['Loại văn bản pháp lý', 'Quyết định', 94, 'sel'],
+    ['Trích yếu', 'Ban hành Quy chế quản lý chất lượng sản phẩm bia và nước giải khát', 88, 'full'],
+    ['Người ký', 'Phạm Đức Toàn', 90, false],
+    ['Ngày ban hành', '18/09/2024', 95, false],
+    ['Ngày hết hiệu lực', '', 0, false],
+    ['Đơn vị phát hành', 'Phòng QA/QC', 92, 'sel'],
+    ['Nhóm tài liệu', 'Văn bản nội bộ', 72, 'sel'],
+    ['Chủ đề nghiệp vụ', 'Chất lượng – QA/QC', 64, 'sel'],
+    ['Mức độ bảo mật', 'Mật', 80, 'sel'],
+    ['Tags', '#chất lượng  #QA  #ISO 22000', 70, 'full'],
+  ];
+  const confC = c => c >= 85 ? 'var(--conf-high)' : c >= 60 ? 'var(--conf-mid)' : 'var(--conf-low)';
+  document.getElementById('metaForm').innerHTML = fields.map(f => {
+    const low = f[2] > 0 && f[2] < 80;
+    const conf = f[2] > 0 ? `<span class="conf-mini" style="color:${confC(f[2])}"><span class="conf-bar" style="width:32px"><i style="width:${f[2]}%;background:${confC(f[2])}"></i></span>${f[2]}%</span>`
+      : `<span class="badge badge-neutral" style="padding:2px 7px">Trống</span>`;
+    const input = f[3] === 'sel'
+      ? `<select class="select" style="${low ? 'border-color:var(--warning-500);background:var(--warning-100)' : ''}"><option>${f[1]}</option></select>`
+      : f[3] === 'full'
+        ? `<textarea class="textarea" rows="2">${f[1]}</textarea>`
+        : `<input class="input" value="${f[1]}" placeholder="${f[1] ? '' : 'Chưa có — nhập thủ công'}">`;
+    return `<div class="${f[3] === 'full' ? 'full' : ''}">
+      <div class="lblrow"><span class="field-label" style="margin:0">${f[0]}</span>${conf}</div>${input}</div>`;
+  }).join('');
+
+  // review
+  document.getElementById('review').innerHTML = fields.filter(f => f[1]).map(f =>
+    `<div class="rev"><span class="k">${f[0]}</span><span class="v">${f[1]}</span></div>`).join('') +
+    `<div class="rev"><span class="k">File chính</span><span class="v">QĐ-2024-142.pdf · 2,8 MB</span></div>
+     <div class="rev"><span class="k">File nguồn</span><span class="v">✎ Có (.docx)</span></div>`;
+
+  function renderNav() {
+    const nb = document.getElementById('navbtns');
+    if (cur === 3) { nb.innerHTML = ''; return; }
+    nb.innerHTML = `
+      <button class="btn btn-ghost" id="back" ${cur === 0 ? 'style="visibility:hidden"' : ''}>← Quay lại</button>
+      <button class="btn ${cur === 2 ? 'btn-gold' : 'btn-primary'}" id="next">${cur === 2 ? 'Xuất bản văn bản' : 'Tiếp tục →'}</button>`;
+    document.getElementById('next').onclick = () => go(cur + 1);
+    const b = document.getElementById('back'); if (b) b.onclick = () => go(cur - 1);
+  }
+  function go(n) {
+    cur = Math.max(0, Math.min(3, n));
+    document.querySelectorAll('.panel').forEach(p => p.classList.toggle('on', +p.dataset.p === cur));
+    renderStepper(); renderNav();
+    document.querySelector('.maincol').scrollTop = 0;
+  }
+  renderStepper(); renderNav();
+})();
+</script>
+</body>
+</html>
