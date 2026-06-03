@@ -1,65 +1,44 @@
 import { NextResponse } from 'next/server';
 import { getGraphAccessToken, AuthError } from '@/lib/auth/token';
-import { resolveSiteId, resolveListId } from '@/lib/sharepoint/resolve';
-import { graphFetch, GraphError } from '@/lib/graph/client';
-import { mapSharePointItemToDocument, GraphListItem } from '@/lib/dms/mapSharePointItemToDocument';
-import { pairDocuments } from '@/lib/dms/pairDocuments';
+import { GraphError } from '@/lib/graph/client';
+import { LibraryResolveError } from '@/lib/sharepoint/resolve';
+import { getCachedDocuments, getCacheMetrics } from '@/lib/dms/documentsCache';
 
 export const dynamic = 'force-dynamic';
 
-const PAGE_SIZE = 200;
-const SAFETY_MAX = 2000; // giới hạn an toàn ban đầu
-
-interface ItemsResponse {
-  value: GraphListItem[];
-  '@odata.nextLink'?: string;
-}
-
-export async function GET(): Promise<NextResponse> {
+export async function GET(request: Request): Promise<NextResponse> {
+  const url = new URL(request.url);
+  const debug = url.searchParams.get('debug') === '1';
+  const force = url.searchParams.get('force') === '1';
   try {
     const accessToken = await getGraphAccessToken();
-    const site = await resolveSiteId(accessToken);
-    const list = await resolveListId(accessToken);
-
-    // Lấy fields (metadata) + driveItem (file info, webUrl, author/dates).
-    const first =
-      `/sites/${site.id}/lists/${list.id}/items` +
-      `?$expand=fields,driveItem&$top=${PAGE_SIZE}`;
-
-    const rawItems: GraphListItem[] = [];
-    let nextUrl: string | undefined = first;
-    let truncated = false;
-
-    while (nextUrl) {
-      const page: ItemsResponse = await graphFetch<ItemsResponse>(nextUrl, { accessToken });
-      if (page.value && page.value.length) {
-        rawItems.push(...page.value);
-      }
-      if (rawItems.length >= SAFETY_MAX) {
-        truncated = true;
-        break;
-      }
-      nextUrl = page['@odata.nextLink'];
-    }
-
-    // Chỉ giữ FILE (loại folder): item phải có driveItem.file.
-    const fileItems = rawItems.filter((it) => it.driveItem && it.driveItem.file && !it.driveItem.folder);
-
-    // Map -> IDocument, rồi áp PDF-first pairing (giống SharePointDmsService).
-    const mapped = fileItems.map(mapSharePointItemToDocument);
-    const documents = pairDocuments(mapped);
+    const cached = await getCachedDocuments(accessToken, force); // P2: cache + in-flight dedupe
 
     return NextResponse.json({
       ok: true,
-      count: documents.length,
-      rawItemCount: rawItems.length,
-      fileItemCount: fileItems.length,
-      truncated,
-      documents,
+      count: cached.documents.length,
+      rawItemCount: cached.rawItemCount,
+      fileItemCount: cached.fileItemCount,
+      truncated: cached.truncated,
+      ...(debug
+        ? {
+            debug: {
+              pages: cached.pages,
+              stats: cached.stats,
+              buildMs: Math.round(cached.buildMs),
+              builtAt: cached.builtAt,
+              cacheMetrics: getCacheMetrics(),
+            },
+          }
+        : {}),
+      documents: cached.documents,
     });
   } catch (err) {
     if (err instanceof AuthError) {
       return NextResponse.json({ ok: false, error: err.message }, { status: err.status });
+    }
+    if (err instanceof LibraryResolveError) {
+      return NextResponse.json({ ok: false, error: err.message, ...err.detail }, { status: err.status });
     }
     if (err instanceof GraphError) {
       return NextResponse.json(

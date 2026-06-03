@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getGraphAccessToken, AuthError } from '@/lib/auth/token';
-import { resolveSiteId, resolveListId } from '@/lib/sharepoint/resolve';
+import { resolveSiteId, resolveListId, LibraryResolveError } from '@/lib/sharepoint/resolve';
 import { GraphError } from '@/lib/graph/client';
 
 export const dynamic = 'force-dynamic';
@@ -18,6 +18,9 @@ export async function GET(): Promise<NextResponse> {
   } catch (err) {
     if (err instanceof AuthError) {
       return NextResponse.json({ ok: false, error: err.message }, { status: err.status });
+    }
+    if (err instanceof LibraryResolveError) {
+      return NextResponse.json({ ok: false, error: err.message, ...err.detail }, { status: err.status });
     }
     if (err instanceof GraphError) {
       return NextResponse.json(

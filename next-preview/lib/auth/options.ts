@@ -16,6 +16,53 @@ const GRAPH_SCOPES = [
 const TENANT_ID = process.env.AZURE_AD_TENANT_ID;
 const TOKEN_ENDPOINT = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`;
 
+// ── Env validation (chạy 1 lần khi load module) ───────────────────────────────
+// In ra log AN TOÀN (không lộ secret) để chẩn đoán OAuthSignin trên production.
+// Nguyên nhân OAuthSignin phổ biến nhất: NEXTAUTH_URL sai (vd còn http://localhost:3000
+// trên prod) hoặc thiếu AZURE_AD_* / NEXTAUTH_SECRET → NextAuth không dựng được auth URL.
+let _envChecked = false;
+function checkAuthEnv(): void {
+  if (_envChecked) {
+    return;
+  }
+  _envChecked = true;
+  const problems: string[] = [];
+  const url = process.env.NEXTAUTH_URL;
+  const isProd = process.env.NODE_ENV === 'production';
+
+  if (!url) {
+    problems.push('NEXTAUTH_URL missing');
+  } else if (isProd && !url.startsWith('https://')) {
+    problems.push(`NEXTAUTH_URL nên là https trên production (đang = "${url}")`);
+  } else if (isProd && /localhost|127\.0\.0\.1/.test(url)) {
+    problems.push(`NEXTAUTH_URL vẫn trỏ localhost trên production (= "${url}") — sửa thành https://vanban.biahalong.com`);
+  }
+  if (!process.env.NEXTAUTH_SECRET) {
+    problems.push('NEXTAUTH_SECRET missing');
+  }
+  if (!process.env.AZURE_AD_CLIENT_ID) {
+    problems.push('AZURE_AD_CLIENT_ID missing');
+  }
+  if (!process.env.AZURE_AD_CLIENT_SECRET) {
+    problems.push('AZURE_AD_CLIENT_SECRET missing');
+  }
+  if (!process.env.AZURE_AD_TENANT_ID) {
+    problems.push('AZURE_AD_TENANT_ID missing');
+  }
+
+  if (problems.length) {
+    // eslint-disable-next-line no-console
+    console.error('[auth][env] ❌ CẤU HÌNH AUTH THIẾU/ SAI:\n  - ' + problems.join('\n  - '));
+  } else {
+    // eslint-disable-next-line no-console
+    console.log(
+      `[auth][env] ✅ OK · NEXTAUTH_URL=${url} · callback=${url}/api/auth/callback/azure-ad · ` +
+        `tenant set · clientId set · secret set`
+    );
+  }
+}
+checkAuthEnv();
+
 /** Refresh access token bằng refresh_token (offline_access). */
 async function refreshAccessToken(token: {
   refreshToken?: string;
@@ -57,15 +104,44 @@ async function refreshAccessToken(token: {
 }
 
 export const authOptions: NextAuthOptions = {
+  // NextAuth v4 đọc NEXTAUTH_SECRET tự động; khai báo tường minh cho rõ ràng + fail sớm.
+  secret: process.env.NEXTAUTH_SECRET,
+  // Bật debug khi cần chẩn đoán prod: đặt AUTH_DEBUG=1 (không bật mặc định ở prod).
+  debug: process.env.AUTH_DEBUG === '1',
   providers: [
     AzureADProvider({
       clientId: process.env.AZURE_AD_CLIENT_ID ?? '',
       clientSecret: process.env.AZURE_AD_CLIENT_SECRET ?? '',
       tenantId: process.env.AZURE_AD_TENANT_ID ?? '',
+      // Tên hiển thị thân thiện (nút mặc định: "Sign in with {name}"). KHÔNG đổi provider id —
+      // id vẫn là "azure-ad" → callback giữ nguyên /api/auth/callback/azure-ad.
+      name: 'Microsoft 365',
+      // Scope tối thiểu (openid profile email User.Read) + scope Graph DMS cần (đã grant):
+      // Sites.Read.All, Files.Read.All; offline_access để refresh token.
       authorization: { params: { scope: GRAPH_SCOPES } },
     }),
   ],
   session: { strategy: 'jwt' },
+  // Trang đăng nhập + lỗi tùy biến (thay trang mặc định /api/auth/signin tiếng Anh).
+  pages: { signIn: '/signin', error: '/signin' },
+  // Log lỗi OAuth AN TOÀN (không log secret/token) — hiện rõ nguyên nhân OAuthSignin trong pm2 logs.
+  logger: {
+    error(code: string, metadata: unknown): void {
+      let detail = '';
+      if (metadata instanceof Error) {
+        detail = `${metadata.name}: ${metadata.message}`;
+      } else if (metadata && typeof metadata === 'object') {
+        const m = metadata as { providerId?: string; message?: string; error?: { message?: string } };
+        detail = `provider=${m.providerId ?? '?'} message=${m.message ?? m.error?.message ?? ''}`;
+      }
+      // eslint-disable-next-line no-console
+      console.error(`[next-auth][error] code=${code} ${detail}`);
+    },
+    warn(code: string): void {
+      // eslint-disable-next-line no-console
+      console.warn(`[next-auth][warn] ${code}`);
+    },
+  },
   callbacks: {
     async jwt({ token, account }) {
       // Đăng nhập lần đầu — lưu token từ account.

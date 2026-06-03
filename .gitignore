@@ -1,9 +1,23 @@
 # ===== Secrets — KHÔNG BAO GIỜ commit =====
 .env
 .env.local
+.env.production
+.env.development
 .env.*.local
+**/.env
 **/.env.local
+**/.env.production
+**/.env.development
 **/.env.*.local
+# nhưng GIỮ file mẫu (không chứa secret):
+!**/.env.example
+# certs / keys / tokens
+*.pem
+*.key
+*.pfx
+*.p12
+**/certs/
+**/tokens/
 
 # ===== Logs =====
 *.log

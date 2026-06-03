@@ -51,8 +51,8 @@ function SignInCard({ note }: { note?: string }): React.ReactElement {
   return (
     <Centered>
       <h1 style={{ fontSize: 20, margin: '0 0 8px', color: '#242424' }}>Văn bản điều hành — DMS Portal</h1>
-      <p style={{ color: '#605e5c', margin: '0 0 20px', fontSize: 14 }}>
-        {note ?? 'Đăng nhập bằng tài khoản Microsoft (Bia Hạ Long) để xem dữ liệu DMS Library thật (chế độ chỉ đọc).'}
+      <p style={{ color: '#605e5c', margin: '0 0 20px', fontSize: 14, lineHeight: 1.5 }}>
+        {note ?? 'Đăng nhập bằng tài khoản Microsoft 365 Bia Hạ Long để xem dữ liệu DMS Library thật.'}
       </p>
       <button
         onClick={() => signIn('azure-ad')}
@@ -66,7 +66,7 @@ function SignInCard({ note }: { note?: string }): React.ReactElement {
           cursor: 'pointer',
         }}
       >
-        Đăng nhập với Microsoft
+        Đăng nhập với Microsoft 365
       </button>
     </Centered>
   );
