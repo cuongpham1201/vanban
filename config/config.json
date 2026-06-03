@@ -1,0 +1,18 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/spfx-build/config.2.0.schema.json",
+  "version": "2.0",
+  "bundles": {
+    "dms-portal-web-part": {
+      "components": [
+        {
+          "entrypoint": "./lib/webparts/dmsPortal/DmsPortalWebPart.js",
+          "manifest": "./src/webparts/dmsPortal/DmsPortalWebPart.manifest.json"
+        }
+      ]
+    }
+  },
+  "externals": {},
+  "localizedResources": {
+    "DmsPortalWebPartStrings": "lib/webparts/dmsPortal/loc/{locale}.js"
+  }
+}

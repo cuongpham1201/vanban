@@ -1,0 +1,22 @@
+{
+  "@microsoft/generator-sharepoint": {
+    "whichFolder": "subdir",
+    "solutionName": "dms-portal",
+    "skipFeatureDeployment": true,
+    "componentType": "webpart",
+    "template": "react",
+    "componentName": "DmsPortal",
+    "componentDescription": "DMS Portal Bia Ha Long",
+    "plusBeta": false,
+    "isCreatingSolution": true,
+    "nodeVersion": "22.12.0",
+    "sdksVersions": {},
+    "version": "1.21.1",
+    "libraryName": "dms-portal",
+    "libraryId": "37541284-4fdf-4881-94f2-9584c5962bf3",
+    "environment": "spo",
+    "packageManager": "npm",
+    "solutionShortDescription": "dms-portal description",
+    "isDomainIsolated": false
+  }
+}

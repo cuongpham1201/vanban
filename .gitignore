@@ -1,0 +1,43 @@
+# ===== Secrets — KHÔNG BAO GIỜ commit =====
+.env
+.env.local
+.env.*.local
+**/.env.local
+**/.env.*.local
+
+# ===== Logs =====
+*.log
+logs
+npm-debug.log*
+
+# ===== Dependencies & build cache (mọi cấp) =====
+node_modules/
+.next/
+out/
+coverage/
+.heft/
+*.tsbuildinfo
+
+# ===== OSX / IDE =====
+.DS_Store
+.vs/
+bin/
+obj/
+
+# ===== SPFx build output / artifacts — ANCHOR ở repo ROOT =====
+# Dùng leading-slash để KHÔNG ảnh hưởng next-preview/lib (đó là SOURCE CODE thật).
+/lib/
+/dist/
+/release/
+/temp/
+/solution/
+/sharepoint/solution/
+*.sppkg
+
+# ===== SPFx generated code =====
+*.scss.ts
+*.resx.ts
+
+# ===== Local scratch =====
+/diag.js
+next-env.d.ts

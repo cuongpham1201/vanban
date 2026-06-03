@@ -1,0 +1,21 @@
+/* Reset tối thiểu cho local preview — giữ nền giống Vite preview (preview/index.html). */
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: #f5f5f5;
+  font-family: 'Segoe UI', 'Segoe UI Web (West European)', -apple-system, BlinkMacSystemFont,
+    Roboto, 'Helvetica Neue', sans-serif;
+}
+
+#__next,
+main {
+  min-height: 100%;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}

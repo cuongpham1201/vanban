@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "SPFx dev server (gulp serve)",
+      "runtimeExecutable": "D:\\AI-code\\vanbandieuhanh\\.toolchain\\node-v22.14.0-win-x64\\node.exe",
+      "runtimeArgs": ["./node_modules/gulp/bin/gulp.js", "serve", "--nobrowser"],
+      "port": 4321
+    },
+    {
+      "name": "DMS Portal preview (Vite)",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["./node_modules/vite/bin/vite.js", "--port", "5173", "--strictPort"],
+      "port": 5173
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.16/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.16",
+  "id": "b7c24a20-3b43-4fb7-86bc-1a0e4e4e96de",
+  "version": "1.0.11",
+  "packageName": "com.biahalong.vanbandieuhanh",
+  "developer": {
+    "name": "Bia Hạ Long",
+    "websiteUrl": "https://biahalong.sharepoint.com/sites/vanbandieuhanh",
+    "privacyUrl": "https://biahalong.sharepoint.com/sites/vanbandieuhanh",
+    "termsOfUseUrl": "https://biahalong.sharepoint.com/sites/vanbandieuhanh"
+  },
+  "name": {
+    "short": "Văn bản điều hành",
+    "full": "Hệ thống quản lý văn bản điều hành"
+  },
+  "description": {
+    "short": "Tra cứu và quản lý văn bản điều hành",
+    "full": "Hệ thống quản lý, tra cứu và lưu trữ văn bản điều hành của Công ty Bia Hạ Long"
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "accentColor": "#0038A8",
+  "configurableTabs": [
+    {
+      "configurationUrl": "https://biahalong.sharepoint.com/sites/vanbandieuhanh/_layouts/15/TeamsLogon.aspx?SPFX=true&dest=/_layouts/15/teamshostedapp.aspx%3Fteams%26componentId=b7c24a20-3b43-4fb7-86bc-1a0e4e4e96de%26forceLocale={locale}",
+      "canUpdateConfiguration": true,
+      "scopes": [
+        "team"
+      ]
+    }
+  ],
+  "staticTabs": [
+    {
+      "entityId": "b7c24a20-3b43-4fb7-86bc-1a0e4e4e96de",
+      "name": "Văn bản điều hành",
+      "contentUrl": "https://biahalong.sharepoint.com/sites/vanbandieuhanh/_layouts/15/TeamsLogon.aspx?SPFX=true&dest=/_layouts/15/teamshostedapp.aspx%3Fteams%26personal%26componentId=b7c24a20-3b43-4fb7-86bc-1a0e4e4e96de%26forceLocale={locale}",
+      "scopes": [
+        "personal"
+      ]
+    }
+  ],
+  "permissions": [
+    "identity",
+    "messageTeamMembers"
+  ],
+  "validDomains": [
+    "*.sharepoint.com",
+    "*.sharepoint-df.com",
+    "spoppe-a.akamaihd.net",
+    "spoprod-a.akamaihd.net",
+    "resourceseng.blob.core.windows.net",
+    "msft.spoppe.com",
+    "*.login.microsoftonline.com",
+    "*.microsoft.com"
+  ]
+}
