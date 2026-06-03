@@ -72,7 +72,7 @@ function SignInCard({ note }: { note?: string }): React.ReactElement {
   );
 }
 
-function AuthBar({ name }: { name?: string | null }): React.ReactElement {
+function AuthBar({ name, email }: { name?: string | null; email?: string | null }): React.ReactElement {
   return (
     <div
       style={{
@@ -92,7 +92,10 @@ function AuthBar({ name }: { name?: string | null }): React.ReactElement {
         boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
       }}
     >
-      <span style={{ color: '#242424' }}>🟢 {name ?? 'Đã đăng nhập'} · Graph read-only</span>
+      <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.25, textAlign: 'right' }}>
+        <strong style={{ color: '#242424', fontWeight: 600 }}>{name ?? 'Người dùng Microsoft 365'}</strong>
+        {email && <span style={{ color: '#605e5c', fontSize: 11 }}>{email}</span>}
+      </span>
       <button
         onClick={() => signOut()}
         style={{
@@ -135,7 +138,7 @@ function GraphPreview(): React.ReactElement {
   }
   return (
     <main>
-      <AuthBar name={session.user?.name} />
+      <AuthBar name={session.user?.name} email={session.user?.email} />
       <DmsPortal
         dmsService={dmsService}
         userDisplayName={session.user?.name ?? 'Microsoft User'}

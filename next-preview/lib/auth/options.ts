@@ -103,6 +103,13 @@ async function refreshAccessToken(token: {
   }
 }
 
+// Domain công ty duy nhất được phép đăng nhập (reuse pattern Approval BHL).
+// Đọc từ ALLOWED_EMAIL_DOMAIN; fallback "biahalong.com".
+const ALLOWED_DOMAIN = '@' + ((process.env.ALLOWED_EMAIL_DOMAIN ?? '').trim().toLowerCase() || 'biahalong.com');
+function isInternalEmail(email: string | null | undefined): boolean {
+  return (email ?? '').toLowerCase().trim().endsWith(ALLOWED_DOMAIN);
+}
+
 export const authOptions: NextAuthOptions = {
   // NextAuth v4 đọc NEXTAUTH_SECRET tự động; khai báo tường minh cho rõ ràng + fail sớm.
   secret: process.env.NEXTAUTH_SECRET,
@@ -119,6 +126,20 @@ export const authOptions: NextAuthOptions = {
       // Scope tối thiểu (openid profile email User.Read) + scope Graph DMS cần (đã grant):
       // Sites.Read.All, Files.Read.All; offline_access để refresh token.
       authorization: { params: { scope: GRAPH_SCOPES } },
+      // Đảm bảo email luôn có (một số tenant không trả claim `email` → dùng UPN
+      // preferred_username) để domain restriction hoạt động ổn định.
+      profile(profile: Record<string, unknown>) {
+        const email =
+          (profile.email as string | undefined) ??
+          (profile.preferred_username as string | undefined) ??
+          (profile.upn as string | undefined) ??
+          null;
+        return {
+          id: (profile.oid as string | undefined) ?? (profile.sub as string | undefined) ?? '',
+          name: (profile.name as string | undefined) ?? email ?? '',
+          email,
+        };
+      },
     }),
   ],
   session: { strategy: 'jwt' },
@@ -143,6 +164,16 @@ export const authOptions: NextAuthOptions = {
     },
   },
   callbacks: {
+    // Domain restriction — CHỈ tài khoản công ty (@biahalong.com) được đăng nhập.
+    // Người ngoài → redirect /unauthorized (không tạo session). KHÔNG log email/secret.
+    async signIn({ user }) {
+      if (!isInternalEmail(user?.email)) {
+        // eslint-disable-next-line no-console
+        console.warn('[auth] denied non-company user');
+        return '/unauthorized';
+      }
+      return true;
+    },
     async jwt({ token, account }) {
       // Đăng nhập lần đầu — lưu token từ account.
       if (account) {
@@ -161,6 +192,10 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       session.accessToken = token.accessToken;
       session.error = token.error;
+      // Chuẩn hóa email về lowercase (so khớp domain nhất quán).
+      if (session.user?.email) {
+        session.user.email = session.user.email.toLowerCase().trim();
+      }
       return session;
     },
   },
