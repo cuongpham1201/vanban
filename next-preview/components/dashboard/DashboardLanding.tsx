@@ -29,7 +29,7 @@ interface QuickAction {
 const ACTIONS: QuickAction[] = [
   { href: '/search', icon: 'search', title: 'Tra cứu văn bản', desc: 'Tìm theo số VB, trích yếu, người ký, bộ lọc.', primary: true },
   { href: '/upload', icon: 'upload', title: 'Tải lên văn bản', desc: 'Thêm văn bản mới kèm thông tin mô tả.' },
-  { href: '/replace', icon: 'replace', title: 'Thay thế văn bản', desc: 'Thay bản cũ bằng phiên bản mới.', disabled: true, badge: 'Sắp có' },
+  { href: '/replace', icon: 'replace', title: 'Thay thế văn bản', desc: 'Thay bản cũ bằng phiên bản mới.' },
 ];
 
 const KPIS: { key: keyof DashTotals; label: string }[] = [

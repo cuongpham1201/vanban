@@ -33,14 +33,13 @@ export default function DocumentHeader({ doc }: { doc: DetailDoc }): React.React
         <div className="actions">
           <button className="btn btn-ghost btn-icon" title="Ghim"><Icon name="pin" /></button>
           <button className="btn btn-ghost btn-icon" title="Chia sẻ"><Icon name="share" /></button>
-          <button
+          <Link
             className="btn btn-ghost"
-            disabled
-            style={{ opacity: 0.55, cursor: 'not-allowed' }}
-            title="Thay thế — Phase 6"
+            href={`/replace?old=${encodeURIComponent(doc.id)}`}
+            title="Thay thế văn bản này bằng phiên bản mới"
           >
             <Icon name="replace" /> Thay thế
-          </button>
+          </Link>
           {doc.webUrl ? (
             <a className="btn btn-primary" href={doc.webUrl} target="_blank" rel="noreferrer">
               <Icon name="download" /> Tải xuống

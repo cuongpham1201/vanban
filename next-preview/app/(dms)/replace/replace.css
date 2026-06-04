@@ -1,0 +1,94 @@
+/* Replace Document — port từ dms-design/ReplaceDocument.html <style>.
+   Scope toàn bộ dưới .rp-root để không ảnh hưởng UI khác. */
+
+.rp-root { height: 100%; overflow: auto; background: var(--gray-050); }
+.rp-root .wrap { max-width: 980px; margin: 0 auto; padding: var(--sp-8) var(--sp-6) var(--sp-12); width: 100%; }
+.rp-empty { padding: 24px; }
+
+/* Stepper */
+.rp-stepper { display: flex; align-items: center; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
+.rp-step { display: flex; align-items: center; gap: 8px; }
+.rp-step-no { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+  font-size: var(--fs-xs); font-weight: 700; background: var(--gray-150); color: var(--gray-600); flex-shrink: 0; }
+.rp-step-lb { font-size: var(--fs-sm); font-weight: 600; color: var(--gray-500); }
+.rp-step.on .rp-step-no { background: var(--navy-600); color: #fff; }
+.rp-step.on .rp-step-lb { color: var(--navy-700); }
+.rp-step.done .rp-step-no { background: var(--success-500); color: #fff; }
+.rp-step.done .rp-step-lb { color: var(--ink); }
+.rp-step-line { flex: 1; min-width: 16px; height: 2px; background: var(--gray-200); }
+
+.rp-body { margin-bottom: 4px; }
+
+/* Flow so sánh */
+.rp-root .flow { display: grid; grid-template-columns: 1fr 64px 1fr; gap: 0; align-items: stretch; margin-bottom: 18px; }
+.rp-root .docbox { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--r-lg); box-shadow: var(--sh-1); overflow: hidden; }
+.rp-root .docbox .head { padding: 12px 16px; font-size: var(--fs-xs); font-weight: 700; letter-spacing: .03em;
+  text-transform: uppercase; border-bottom: 1px solid var(--gray-150); display: flex; align-items: center; gap: 8px; }
+.rp-root .docbox.old .head { color: var(--gray-600); background: var(--gray-050); }
+.rp-root .docbox.new .head { color: var(--navy-700); background: var(--navy-050); }
+.rp-root .docbox .body { padding: 18px 16px; }
+
+.rp-root .arrow { display: grid; place-items: center; color: var(--navy-500); }
+.rp-root .arrow svg { width: 30px; height: 30px; }
+
+/* Picked card + picker */
+.rp-root .pickedcard { display: flex; gap: 12px; }
+.rp-root .pickedcard .ficon { width: 40px; height: 46px; border-radius: var(--r-xs); background: var(--red-100);
+  color: var(--red-600); display: grid; place-items: center; font-size: 9px; font-weight: 800; flex-shrink: 0; }
+.rp-root .pickedcard .num { font-family: var(--font-mono); font-size: var(--fs-xs); font-weight: 600; color: var(--navy-600); }
+
+.rp-root .picksearch { display: flex; align-items: center; gap: 9px; border: 1px solid var(--gray-300);
+  border-radius: var(--r-sm); padding: 9px 12px; }
+.rp-root .picksearch svg { width: 17px; height: 17px; color: var(--gray-400); flex-shrink: 0; }
+.rp-root .picksearch input { border: 0; outline: none; flex: 1; min-width: 0; font: inherit; font-size: var(--fs-sm); background: transparent; }
+
+.rp-root .suggest { margin-top: 4px; border: 1px solid var(--gray-150); border-radius: var(--r-md); overflow: hidden; }
+.rp-root .sg { display: flex; align-items: center; gap: 10px; padding: 10px 12px; cursor: pointer; border-bottom: 1px solid var(--gray-100); }
+.rp-root .sg:last-child { border: 0; }
+.rp-root .sg:hover { background: var(--gray-050); }
+.rp-root .sg .num { font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 600; color: var(--navy-600); }
+
+/* Compare rows */
+.rp-cmp-row { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--gray-100); }
+.rp-cmp-row:last-child { border: 0; }
+.rp-cmp-k { width: 116px; flex-shrink: 0; font-size: var(--fs-xs); color: var(--gray-500); font-weight: 600; }
+.rp-cmp-v { flex: 1; min-width: 0; font-size: var(--fs-sm); color: var(--ink); }
+
+/* Quan hệ thay thế */
+.rp-relation { display: flex; align-items: center; gap: 12px; justify-content: center; flex-wrap: wrap;
+  padding: 14px; background: var(--navy-050); border: 1px solid var(--navy-100); border-radius: var(--r-md); }
+
+/* Link preview (gold) */
+.rp-root .link-preview { background: var(--gold-050); border: 1px solid var(--gold-200); border-radius: var(--r-lg); padding: 18px 20px; }
+.rp-root .linkrow { display: flex; align-items: center; gap: 10px; padding: 7px 0; font-size: var(--fs-sm); flex-wrap: wrap; }
+.rp-root .tagk { font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 700; padding: 2px 7px; border-radius: var(--r-xs); }
+.rp-tag-new { background: var(--navy-100); color: var(--navy-700); }
+.rp-tag-old { background: var(--gray-150); color: var(--gray-600); }
+.rp-root .opt { display: flex; gap: 11px; align-items: flex-start; padding: 12px 0; border-top: 1px solid var(--gray-150); }
+.rp-root .opt input { width: 16px; height: 16px; margin-top: 2px; accent-color: var(--navy-600); }
+
+/* Metadata liên quan */
+.rp-meta { margin-top: 16px; background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--r-lg); padding: 16px 18px; box-shadow: var(--sh-1); }
+.rp-meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 18px; }
+.rp-meta-grid > div { display: flex; flex-direction: column; gap: 2px; }
+
+/* Cảnh báo UI preview */
+.rp-warn { display: flex; gap: 10px; align-items: flex-start; margin-top: 16px; padding: 12px 16px;
+  background: var(--gold-050); border: 1px solid var(--gold-200); border-radius: var(--r-md);
+  font-size: var(--fs-sm); color: var(--gold-700); line-height: 1.5; }
+.rp-warn svg { flex-shrink: 0; margin-top: 1px; }
+
+/* Success */
+.rp-success { text-align: center; padding: 40px 20px; display: flex; flex-direction: column; align-items: center; }
+.rp-success-ic { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--success-100, #e6f6ec); color: var(--success-500); }
+
+/* Footer */
+.rp-foot { display: flex; align-items: center; justify-content: space-between;
+  margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--gray-200); }
+
+@media (max-width: 760px) {
+  .rp-root .flow { grid-template-columns: 1fr; gap: 12px; }
+  .rp-root .arrow { transform: rotate(90deg); height: 40px; }
+  .rp-meta-grid { grid-template-columns: 1fr; }
+}
