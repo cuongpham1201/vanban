@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { useRouter } from 'next/navigation';
 import Icon from '@/components/shell/Icon';
 import { IDocument } from '@dms/models/IDocument';
 import { FACET_DEFS, matchesKeyword, toSearchDoc, SearchDoc } from './searchTypes';
@@ -39,6 +40,8 @@ export default function SearchCenterPage(): React.ReactElement {
   const [mode, setMode] = React.useState<ViewMode>('3col');
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const [sort, setSort] = React.useState<SortKey>('relevance');
+  const router = useRouter();
+  const openDetail = (id: string): void => router.push(`/documents/${encodeURIComponent(id)}`);
 
   React.useEffect(() => {
     let alive = true;
@@ -182,19 +185,15 @@ export default function SearchCenterPage(): React.ReactElement {
             <div className="sc-empty">Đang tải văn bản…</div>
           </section>
         ) : mode === 'cards' ? (
-          <CardGrid
-            docs={viewDocs}
-            onSelect={(id) => {
-              setSelectedId(id);
-              setMode('3col');
-            }}
-          />
+          // Lưới thẻ: click → mở trang chi tiết.
+          <CardGrid docs={viewDocs} onSelect={openDetail} />
         ) : (
           <DocumentList
             docs={viewDocs}
             total={filtered.length}
             selectedId={effectiveId}
-            onSelect={setSelectedId}
+            // 3 cột: click cập nhật preview. Danh sách (full-width, không preview): click mở chi tiết.
+            onSelect={mode === 'list' ? openDetail : setSelectedId}
             sort={sort}
             onSort={setSort}
           />

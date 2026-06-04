@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import Icon from '@/components/shell/Icon';
 import { SearchDoc } from './searchTypes';
 
@@ -49,14 +50,13 @@ export default function PreviewPane({ doc }: { doc: SearchDoc | null }): React.R
           )}
         </div>
         <div className="row gap-2" style={{ marginTop: 14 }}>
-          <button
+          <Link
             className="btn btn-primary"
-            style={{ flex: 1, justifyContent: 'center', opacity: 0.55, cursor: 'not-allowed' }}
-            disabled
-            title="Trang chi tiết sẽ làm ở Phase 3"
+            style={{ flex: 1, justifyContent: 'center' }}
+            href={`/documents/${encodeURIComponent(doc.id)}`}
           >
             Mở chi tiết
-          </button>
+          </Link>
           {doc.webUrl && (
             <a className="btn btn-gold" href={doc.webUrl} target="_blank" rel="noreferrer" title="Mở file trên SharePoint">
               <Icon name="download" />
