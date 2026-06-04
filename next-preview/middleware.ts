@@ -32,8 +32,20 @@ export default withAuth(
   }
 );
 
-// Chỉ match route TRANG (không match /api/*). Trang chủ '/' là SPA chính của DMS;
-// liệt kê thêm các route tương lai để forward-compatible.
+// Chỉ match route TRANG (không match /api/*). Trang chủ '/' là SPA cũ;
+// các route UI V2 app/(dms)/* yêu cầu đăng nhập (Phase 2: /search bắt đầu dùng data thật).
 export const config = {
-  matcher: ['/', '/tra-cuu/:path*', '/upload/:path*', '/chuan-hoa/:path*', '/yeu-thich/:path*'],
+  matcher: [
+    '/',
+    '/dashboard',
+    '/search',
+    '/documents/:path*',
+    '/upload',
+    '/replace',
+    '/admin/:path*',
+    // route placeholder cũ (giữ tương thích):
+    '/tra-cuu/:path*',
+    '/chuan-hoa/:path*',
+    '/yeu-thich/:path*',
+  ],
 };

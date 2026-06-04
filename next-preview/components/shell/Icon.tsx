@@ -4,7 +4,9 @@ import * as React from 'react';
 // (KHÔNG dùng dangerouslySetInnerHTML). Tất cả dùng stroke currentColor, width 1.8.
 export type IconName =
   | 'dashboard' | 'search' | 'docs' | 'upload' | 'replace' | 'admin'
-  | 'bell' | 'help' | 'clock' | 'star' | 'archive' | 'reports';
+  | 'bell' | 'help' | 'clock' | 'star' | 'archive' | 'reports'
+  | 'cols' | 'list' | 'grid' | 'plus' | 'chevdown' | 'chevright' | 'filter'
+  | 'pin' | 'download' | 'share';
 
 const PATHS: Record<IconName, React.ReactNode> = {
   dashboard: (
@@ -71,6 +73,45 @@ const PATHS: Record<IconName, React.ReactNode> = {
     </>
   ),
   reports: <path d="M4 20V10m6 10V4m6 16v-7" />,
+  cols: (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="1.5" />
+      <path d="M9 4v16M15 4v16" />
+    </>
+  ),
+  list: <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />,
+  grid: (
+    <>
+      <rect x="3" y="3" width="7" height="7" rx="1.2" />
+      <rect x="14" y="3" width="7" height="7" rx="1.2" />
+      <rect x="3" y="14" width="7" height="7" rx="1.2" />
+      <rect x="14" y="14" width="7" height="7" rx="1.2" />
+    </>
+  ),
+  plus: <path d="M12 5v14M5 12h14" />,
+  chevdown: <path d="m6 9 6 6 6-6" />,
+  chevright: <path d="m9 6 6 6-6 6" />,
+  filter: <path d="M3 5h18l-7 8v6l-4-2v-4z" />,
+  pin: (
+    <>
+      <path d="M9 4h6l-1 6 3 3H7l3-3z" />
+      <path d="M12 13v7" />
+    </>
+  ),
+  download: (
+    <>
+      <path d="M12 4v10m0 0 4-4m-4 4-4-4" />
+      <path d="M5 19h14" />
+    </>
+  ),
+  share: (
+    <>
+      <circle cx="18" cy="5" r="2.5" />
+      <circle cx="6" cy="12" r="2.5" />
+      <circle cx="18" cy="19" r="2.5" />
+      <path d="m8.2 10.8 7.6-4.4M8.2 13.2l7.6 4.4" />
+    </>
+  ),
 };
 
 export interface IconProps {
