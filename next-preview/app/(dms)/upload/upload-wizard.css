@@ -1,0 +1,56 @@
+/* Upload Wizard — port từ dms-design/UploadWizard.html <style>.
+   Scope dưới .uw-root để không đụng global. Bỏ html/body/.screen. */
+
+.uw-root { padding: 0; }
+.uw-wrap { max-width: 880px; margin: 0 auto; padding: var(--sp-8) var(--sp-6) var(--sp-12); width: 100%; }
+
+.uw-root .stepper { display: flex; align-items: center; margin-bottom: var(--sp-8); }
+.uw-root .step { display: flex; align-items: center; gap: 10px; }
+.uw-root .step .dot { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: var(--fs-sm); font-weight: 700; background: var(--gray-150); color: var(--gray-500); flex-shrink: 0; }
+.uw-root .step .dot svg { width: 16px; height: 16px; }
+.uw-root .step .lbl { font-size: var(--fs-sm); font-weight: 600; color: var(--gray-500); white-space: nowrap; }
+.uw-root .step.on .dot { background: var(--navy-600); color: #fff; }
+.uw-root .step.on .lbl { color: var(--navy-700); }
+.uw-root .step.done .dot { background: var(--success-500); color: #fff; }
+.uw-root .step.done .lbl { color: var(--gray-700); }
+.uw-root .stepline { flex: 1; height: 2px; background: var(--gray-200); margin: 0 14px; }
+.uw-root .stepline.done { background: var(--success-500); }
+
+.uw-root .panel { animation: uwfade .2s ease; }
+@keyframes uwfade { from { opacity: 0; transform: translateY(6px); } }
+
+.uw-root .dropzone { border: 2px dashed var(--gray-300); border-radius: var(--r-lg); background: var(--white); padding: 48px; text-align: center; cursor: pointer; transition: all .15s; }
+.uw-root .dropzone:hover { border-color: var(--navy-400); background: var(--navy-050); }
+.uw-root .dropzone.drag { border-color: var(--navy-500); background: var(--navy-050); }
+.uw-root .dropzone .big { width: 56px; height: 56px; border-radius: 50%; background: var(--navy-050); color: var(--navy-600); display: grid; place-items: center; margin: 0 auto 16px; }
+.uw-root .dropzone .big svg { width: 26px; height: 26px; }
+
+.uw-root .filecard { display: flex; align-items: center; gap: 14px; padding: 16px; border: 1px solid var(--gray-200); border-radius: var(--r-md); background: var(--white); margin-top: 16px; box-shadow: var(--sh-1); }
+.uw-root .filecard .ficon { width: 38px; height: 44px; border-radius: var(--r-xs); background: var(--red-100); color: var(--red-600); display: grid; place-items: center; font-size: 9px; font-weight: 800; }
+.uw-root .filecard .ficon.doc { background: var(--navy-050); color: var(--navy-600); }
+
+.uw-root .ai-note { display: flex; gap: 12px; padding: 14px 16px; background: var(--gold-050); border: 1px solid var(--gold-200); border-radius: var(--r-md); margin-bottom: 20px; }
+.uw-root .ai-note .ic { width: 30px; height: 30px; border-radius: var(--r-sm); background: var(--gold-500); color: var(--navy-900); display: grid; place-items: center; flex-shrink: 0; font-weight: 800; }
+.uw-root .ai-note.info { background: var(--info-100); border-color: var(--info-100); }
+.uw-root .ai-note.info .ic { background: var(--info-500); color: #fff; }
+
+.uw-root .fgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 20px; }
+.uw-root .fgrid .full { grid-column: 1 / -1; }
+.uw-root .lblrow { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+
+.uw-root .rev-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 28px; }
+.uw-root .rev { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--gray-100); font-size: var(--fs-sm); }
+.uw-root .rev .k { color: var(--gray-500); font-size: var(--fs-xs); }
+.uw-root .rev .v { font-weight: 600; text-align: right; word-break: break-word; }
+
+.uw-root .warnbox { background: var(--warning-100); border: 1px solid var(--warning-500); border-radius: var(--r-md); padding: 12px 16px; margin-top: 18px; }
+.uw-root .warnbox ul { margin: 6px 0 0; padding-left: 18px; }
+.uw-root .warnbox li { font-size: var(--fs-sm); color: var(--warning-700); }
+
+.uw-root .navbtns { display: flex; justify-content: space-between; margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--gray-200); }
+
+.uw-root .success { text-align: center; padding: 30px 0; }
+.uw-root .success .check { width: 72px; height: 72px; border-radius: 50%; background: var(--success-100); color: var(--success-700); display: grid; place-items: center; margin: 0 auto 18px; }
+.uw-root .success .check svg { width: 36px; height: 36px; }
+
+@media (max-width: 680px) { .uw-root .fgrid, .uw-root .rev-grid { grid-template-columns: 1fr; } .uw-root .step .lbl { display: none; } }
