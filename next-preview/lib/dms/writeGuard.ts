@@ -35,6 +35,21 @@ function emailOf(session: Session | null): string {
   return (session?.user?.email ?? '').toLowerCase().trim();
 }
 
+/**
+ * True nếu email thuộc domain công ty + nằm trong allowlist — KHÔNG phụ thuộc write flag.
+ * Dùng cho diagnostics: admin/allowlist xem được kể cả khi DMS_WRITE_ENABLED còn tắt.
+ */
+export function isWriteAllowlisted(session: Session | null): boolean {
+  if (!session) {
+    return false;
+  }
+  const email = emailOf(session);
+  if (!email || !email.endsWith(ALLOWED_DOMAIN)) {
+    return false;
+  }
+  return getWriteAllowlist().includes(email);
+}
+
 /** True nếu email thuộc domain công ty + nằm trong allowlist (và flag bật + có session). */
 export function canWriteDms(session: Session | null): boolean {
   if (!isDmsWriteEnabled() || !session) {
