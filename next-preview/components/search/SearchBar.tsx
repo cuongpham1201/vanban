@@ -3,7 +3,8 @@
 import * as React from 'react';
 import Icon from '@/components/shell/Icon';
 
-// Ô tìm kiếm lớn — port từ SearchCenter.html .bigsearch. Ctrl K chỉ là visual placeholder (Phase sau).
+// Ô tìm kiếm lớn — port từ SearchCenter.html .bigsearch. Ctrl/Cmd K focus vào input này
+// (xử lý ở GlobalShortcuts qua id="q").
 export default function SearchBar({
   value,
   onChange,
@@ -16,6 +17,7 @@ export default function SearchBar({
       <Icon name="search" />
       <input
         id="q"
+        aria-label="Tìm kiếm văn bản"
         placeholder="Tìm theo trích yếu, số văn bản, người ký, tags…"
         value={value}
         onChange={(e) => onChange(e.target.value)}

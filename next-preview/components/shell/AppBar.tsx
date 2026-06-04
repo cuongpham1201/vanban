@@ -1,25 +1,48 @@
+'use client';
+
 import * as React from 'react';
+import { useRouter } from 'next/navigation';
 import Icon from './Icon';
 
-// Thanh trên cùng (appbar) — port từ dms-design/assets/shell.js.
-// Phase 1: tĩnh, chưa hook dữ liệu thật (avatar/global search là placeholder).
+// Thanh trên cùng (appbar). Global search là input thật (id="global-search"):
+//  - Ctrl/Cmd+K focus vào nó (xem GlobalShortcuts) khi không ở /search.
+//  - Enter → điều hướng sang /search?q=… (read-only, không gọi API ở đây).
 export default function AppBar(): React.ReactElement {
+  const router = useRouter();
+  const [q, setQ] = React.useState('');
+
+  const submit = (): void => {
+    const term = q.trim();
+    router.push(term ? `/search?q=${encodeURIComponent(term)}` : '/search');
+  };
+
   return (
     <header className="appbar">
       <div className="logo">
         <span className="mark" />
-        <span>
-          BHL <span style={{ fontWeight: 500, opacity: 0.7 }}>DMS</span>
-        </span>
+        <span>BHL <span style={{ fontWeight: 500, opacity: 0.85 }}>- Văn bản điều hành</span></span>
       </div>
       <div className="spacer" />
-      <div className="gsearch" role="search" title="Tìm văn bản (Ctrl K)">
+      <div className="gsearch" role="search">
         <Icon name="search" size={18} />
-        <span>Tìm văn bản, số VB, người ký…</span>
+        <input
+          id="global-search"
+          type="search"
+          aria-label="Tìm văn bản"
+          placeholder="Tìm văn bản, số VB, người ký…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              submit();
+            }
+          }}
+        />
         <span className="kbd">Ctrl K</span>
       </div>
       <div className="spacer" />
-      <div className="iconbtn" title="Tải lên">
+      <div className="iconbtn" title="Tải lên" onClick={() => router.push('/upload')} role="button" tabIndex={0}>
         <Icon name="upload" />
       </div>
       <div className="iconbtn" title="Thông báo" style={{ position: 'relative' }}>

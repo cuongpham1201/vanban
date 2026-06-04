@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Icon from '@/components/shell/Icon';
 import { IDocument } from '@dms/models/IDocument';
 import { FACET_DEFS, matchesKeyword, toSearchDoc, SearchDoc } from './searchTypes';
@@ -33,9 +33,11 @@ function sortDocs(docs: IDocument[], sort: SortKey): IDocument[] {
 }
 
 export default function SearchCenterPage(): React.ReactElement {
+  const searchParams = useSearchParams();
   const [raw, setRaw] = React.useState<IDocument[] | null>(null);
   const [error, setError] = React.useState<string | undefined>();
-  const [query, setQuery] = React.useState('');
+  // Seed từ ?q= (vd điều hướng từ ô tìm kiếm trên AppBar). Chỉ dùng làm giá trị khởi tạo.
+  const [query, setQuery] = React.useState(searchParams.get('q') ?? '');
   const [selected, setSelected] = React.useState<Record<string, Set<string>>>({});
   const [mode, setMode] = React.useState<ViewMode>('3col');
   const [selectedId, setSelectedId] = React.useState<string | null>(null);

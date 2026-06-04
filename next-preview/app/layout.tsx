@@ -3,8 +3,8 @@ import './globals.css';
 import Providers from './Providers';
 
 export const metadata: Metadata = {
-  title: 'DMS Portal — Next.js Local Preview',
-  description: 'Local UI/UX preview cho Văn bản điều hành — Bia Hạ Long',
+  title: 'BHL - Văn bản điều hành',
+  description: 'Hệ thống quản lý văn bản điều hành — Công ty CP Bia Hạ Long',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }): React.ReactElement {

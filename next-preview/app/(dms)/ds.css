@@ -108,8 +108,13 @@
 .appbar .gsearch { flex: 0 1 460px; display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,.12);
   border: 1px solid rgba(255,255,255,.18); border-radius: var(--r-sm); padding: 7px 12px; color: rgba(255,255,255,.85);
   font-size: var(--fs-sm); cursor: pointer; }
-.appbar .gsearch svg { width: 18px; height: 18px; }
-.appbar .gsearch .kbd { margin-left: auto; font-size: var(--fs-2xs); background: rgba(255,255,255,.14);
+.appbar .gsearch { cursor: text; }
+.appbar .gsearch svg { width: 18px; height: 18px; flex-shrink: 0; }
+.appbar .gsearch input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent;
+  color: #fff; font: inherit; font-size: var(--fs-sm); }
+.appbar .gsearch input::placeholder { color: rgba(255,255,255,.7); }
+.appbar .gsearch input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+.appbar .gsearch .kbd { flex-shrink: 0; font-size: var(--fs-2xs); background: rgba(255,255,255,.14);
   padding: 2px 6px; border-radius: var(--r-xs); border: 1px solid rgba(255,255,255,.2); }
 .appbar .iconbtn { width: 34px; height: 34px; border-radius: var(--r-sm); display: grid; place-items: center;
   color: rgba(255,255,255,.85); cursor: pointer; }

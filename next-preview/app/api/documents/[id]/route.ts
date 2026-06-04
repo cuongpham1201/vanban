@@ -16,7 +16,9 @@ const IS_DEV = process.env.NODE_ENV === 'development';
 // Nhánh dev (NODE_ENV-gated, MockDmsService) chỉ để preview khi dev-login (không có Graph token);
 // inert ở production (session thật luôn có accessToken). Không phụ thuộc/đụng các file dev-login.
 export async function GET(_req: Request, { params }: { params: { id: string } }): Promise<NextResponse> {
-  const id = decodeURIComponent(params.id);
+  // Next.js đã percent-decode dynamic param → dùng thẳng, KHÔNG decodeURIComponent lại
+  // (double-decode sẽ ném URIError với id chứa "%"). Client encode 1 lần khi build URL.
+  const id = params.id;
   try {
     const session = await getServerSession(authOptions);
     if (!session) {

@@ -31,13 +31,9 @@ export default function ActiveChips({
       <span className="chip" style={{ borderStyle: 'dashed', color: 'var(--gray-500)' }}>
         <Icon name="plus" /> Thêm bộ lọc
       </span>
-      <span
-        className="t-xs mut"
-        style={{ marginLeft: 'auto', cursor: 'pointer', color: 'var(--navy-600)', fontWeight: 600 }}
-        title="Tính năng lưu bộ lọc — sẽ làm sau"
-      >
-        <Icon name="star" /> Lưu bộ lọc này
-      </span>
+      <button type="button" className="savefilter" title="Lưu bộ lọc">
+        <Icon name="star" /> Lưu bộ lọc
+      </button>
     </div>
   );
 }

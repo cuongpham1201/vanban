@@ -14,13 +14,17 @@
 .seg button svg { width: 15px; height: 15px; }
 .seg button.on { background: var(--white); color: var(--navy-600); box-shadow: var(--sh-1); }
 
-/* search bar row */
-.searchrow { padding: 14px var(--sp-6); background: var(--white); border-bottom: 1px solid var(--gray-200); }
+/* search bar row — gọn lại: khu vực search + chips ~90–110px sau header "Trung tâm tìm kiếm" */
+.searchrow { padding: 9px var(--sp-6) 10px; background: var(--white); border-bottom: 1px solid var(--gray-200); }
 .bigsearch { display: flex; align-items: center; gap: 10px; max-width: 760px; border: 1px solid var(--gray-300);
-  border-radius: var(--r-md); padding: 11px 14px; background: var(--white); box-shadow: var(--sh-1); }
-.bigsearch svg { width: 20px; height: 20px; color: var(--gray-500); }
-.bigsearch input { flex: 1; border: 0; outline: none; font: inherit; font-size: 15px; color: var(--ink); background: transparent; }
-.activechips { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; align-items: center; }
+  border-radius: var(--r-md); padding: 8px 13px; background: var(--white); box-shadow: var(--sh-1); }
+.bigsearch svg { width: 18px; height: 18px; color: var(--gray-500); }
+.bigsearch input { flex: 1; border: 0; outline: none; font: inherit; font-size: 14px; color: var(--ink); background: transparent; }
+.activechips { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; align-items: center; }
+.savefilter { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-2xs); font-weight: 600;
+  color: var(--navy-600); background: var(--navy-050, #eef3fb); border: 1px solid var(--gray-200);
+  border-radius: var(--r-xs); padding: 4px 9px; cursor: pointer; }
+.savefilter svg { width: 13px; height: 13px; }
 
 /* layout */
 .sc-layout { display: flex; flex: 1; min-height: 0; }
