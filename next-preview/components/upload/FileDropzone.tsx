@@ -26,7 +26,7 @@ export default function FileDropzone({
       return;
     }
     const ext = (f.name.split('.').pop() ?? '').toLowerCase();
-    onFile({ name: f.name, sizeKB: Math.max(1, Math.round(f.size / 1024)), ext });
+    onFile({ name: f.name, sizeKB: Math.max(1, Math.round(f.size / 1024)), ext, raw: f });
   };
 
   return (

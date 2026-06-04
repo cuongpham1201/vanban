@@ -76,6 +76,8 @@ export interface SelectedFile {
   name: string;
   sizeKB: number;
   ext: string;
+  /** File gốc — chỉ dùng khi upload write thật (Phase 10D.3); undefined ở chế độ xem trước. */
+  raw?: File;
 }
 
 /** Cảnh báo UI (không chặn cứng) — thiếu file hoặc field bắt buộc. */

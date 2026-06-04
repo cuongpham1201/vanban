@@ -5,10 +5,9 @@
 //  - Mọi write thật bị chặn 2 lớp: (1) flag isDmsWriteEnabled, (2) chưa implement → NotImplemented.
 //  - Phase 10C chỉ dựng khung + helper read-only an toàn (duplicate-check). Upload/PATCH thật để 10D+.
 import { graphFetch, type GraphFetchOptions } from '@/lib/graph/client';
-import { getCachedDocuments } from '@/lib/dms/documentsCache';
+import { resolveSiteId, resolveListId, getDrives } from '@/lib/sharepoint/resolve';
 import { isDmsWriteEnabled, DMS_WRITE_DISABLED_MSG } from './writeConfig';
 import { buildFileName, normalizeMetadataPayload, validateUploadMetadata, type ValidationResult } from './writeHelpers';
-import type { IDocument } from '@dms/models/IDocument';
 
 export class NotImplementedError extends Error {
   status = 501;
@@ -31,6 +30,66 @@ export interface DuplicateCheckResult {
   matches: { id: string; soVanBan: string; trichYeu: string }[];
 }
 
+export interface AppAccessInfo {
+  siteId: string;
+  siteUrl?: string;
+  listId: string;
+  library: string;
+}
+
+export interface FolderResolveResult {
+  found: boolean;
+  driveId?: string;
+  driveName?: string;
+  folderId?: string;
+  folderName?: string;
+  candidates: string[]; // tên folder cấp 1 hiện có (chẩn đoán)
+}
+
+// Giới hạn simple upload (PUT /content). File lớn hơn → lỗi rõ; resumable upload = follow-up.
+export const MAX_UPLOAD_BYTES = 60 * 1024 * 1024; // 60MB
+
+export class UploadTooLargeError extends Error {
+  status = 413;
+  constructor(bytes: number) {
+    super(`File ${(bytes / 1024 / 1024).toFixed(1)}MB vượt giới hạn ${MAX_UPLOAD_BYTES / 1024 / 1024}MB (simple upload).`);
+    this.name = 'UploadTooLargeError';
+  }
+}
+export class FolderNotFoundError extends Error {
+  status = 404;
+  candidates: string[];
+  constructor(input: string, candidates: string[]) {
+    super(`Không tìm thấy folder cấp lưu trữ khớp "${input}".`);
+    this.name = 'FolderNotFoundError';
+    this.candidates = candidates;
+  }
+}
+export class PatchRolledBackError extends Error {
+  status = 502;
+  rolledBack = true;
+  constructor(cause: unknown) {
+    super(`PATCH metadata thất bại sau retry — đã rollback xóa file đã upload. ${cause instanceof Error ? cause.message : ''}`.trim());
+    this.name = 'PatchRolledBackError';
+  }
+}
+
+export interface CreateUploadRequest {
+  fileName: string;
+  fileBuffer: ArrayBuffer;
+  donViSoHuu: string; // nhãn folder cấp 1 đầy đủ
+  metadata: Record<string, string>; // internal column names (đã normalize)
+  editableFileName?: string;
+  editableFileBuffer?: ArrayBuffer;
+}
+export interface CreateUploadResult {
+  listItemId: string;
+  driveItemId: string;
+  webUrl: string;
+  hasEditableSource: boolean;
+  warning?: string;
+}
+
 /**
  * Khung dịch vụ write. Khởi tạo với accessToken delegated (server-side).
  * Tạo instance KHÔNG gây side-effect; chỉ method mới hành động.
@@ -50,18 +109,32 @@ export class SharePointDmsService {
   }
 
   /**
-   * READ-ONLY: kiểm tra trùng SoVanBan trên dữ liệu hiện có (không ghi gì).
-   * Dùng cache chung với /api/documents. An toàn kể cả khi write flag tắt.
+   * READ-ONLY: kiểm tra trùng SoVanBan bằng cách QUERY SharePoint TRỰC TIẾP (KHÔNG dùng cache)
+   * → luôn phản ánh trạng thái mới nhất ngay trước khi ghi. Lọc bằng $filter fields/SoVanBan.
    */
   async checkDuplicateBySoVanBan(soVanBan: string): Promise<DuplicateCheckResult> {
-    const key = (soVanBan ?? '').trim().toLowerCase();
-    if (!key) {
+    const raw = (soVanBan ?? '').trim();
+    if (!raw) {
       return { exists: false, matches: [] };
     }
-    const cached = await getCachedDocuments(this.accessToken);
-    const matches = cached.documents
-      .filter((d: IDocument) => (d.soVanBan ?? '').trim().toLowerCase() === key)
-      .map((d: IDocument) => ({ id: d.id, soVanBan: d.soVanBan, trichYeu: d.trichYeu }));
+    const site = await resolveSiteId(this.accessToken);
+    const list = await resolveListId(this.accessToken);
+    const escaped = raw.replace(/'/g, "''"); // escape nháy đơn cho OData
+    const path =
+      `/sites/${site.id}/lists/${list.id}/items` +
+      `?$expand=fields($select=SoVanBan,TrichYeu)&$filter=fields/SoVanBan eq '${encodeURIComponent(escaped)}'&$top=50`;
+    const resp = await graphFetch<{ value: { id: string; fields?: { SoVanBan?: string; TrichYeu?: string } }[] }>(
+      path,
+      {
+        accessToken: this.accessToken,
+        // Cho phép filter trên cột chưa index (DMS Library) — tránh lỗi 'not indexed'.
+        headers: { Prefer: 'HonorNonIndexedQueriesWarningMayFailRandomly' },
+      }
+    );
+    const key = raw.toLowerCase();
+    const matches = (resp.value ?? [])
+      .filter((it) => (it.fields?.SoVanBan ?? '').trim().toLowerCase() === key)
+      .map((it) => ({ id: it.id, soVanBan: it.fields?.SoVanBan ?? '', trichYeu: it.fields?.TrichYeu ?? '' }));
     return { exists: matches.length > 0, matches };
   }
 
@@ -83,33 +156,170 @@ export class SharePointDmsService {
   // Tất cả method dưới: assertWriteEnabled() trước, rồi NotImplemented.
   // ⇒ flag tắt → "DMS write is disabled"; flag bật → "NotImplemented" (vẫn KHÔNG ghi).
 
-  /** Resolve folder upload theo Cấp lưu trữ (DonViSoHuu). Phase 10D. */
-  async resolveUploadFolder(_capLuuTru: string): Promise<never> {
+  /**
+   * READ-ONLY: xác minh app-only token đọc được site + library (chứng minh Application
+   * permissions hoạt động) — KHÔNG ghi gì. Flag-guarded.
+   */
+  async verifyAppAccess(): Promise<AppAccessInfo> {
     this.assertWriteEnabled();
-    throw new NotImplementedError('resolveUploadFolder');
-  }
-
-  /** Upload PDF (uploadSession cho file lớn). Phase 10D. */
-  async uploadPdf(): Promise<never> {
-    this.assertWriteEnabled();
-    throw new NotImplementedError('uploadPdf');
-  }
-
-  /** Upload bản mềm DOCX/XLSX/PPTX (tùy chọn). Phase 10D. */
-  async uploadEditableSource(): Promise<never> {
-    this.assertWriteEnabled();
-    throw new NotImplementedError('uploadEditableSource');
-  }
-
-  /** PATCH metadata cho listItem. Phase 10D/10E. */
-  async patchMetadata(): Promise<never> {
-    this.assertWriteEnabled();
-    throw new NotImplementedError('patchMetadata');
+    const site = await resolveSiteId(this.accessToken);
+    const list = await resolveListId(this.accessToken);
+    return { siteId: site.id, siteUrl: site.webUrl, listId: list.id, library: list.displayName };
   }
 
   /**
-   * Low-level Graph write — Phase 10D mới dùng. Chặn cứng nếu flag tắt.
-   * Hiện CHƯA có caller nào (không method nào gọi) → đảm bảo không ghi gì ở 10C.
+   * READ-ONLY: resolve folder cấp 1 theo Cấp lưu trữ (DonViSoHuu) — chỉ LIỆT KÊ + so khớp,
+   * KHÔNG tạo folder, KHÔNG ghi. Flag-guarded. Trả found + candidates để chẩn đoán.
+   */
+  async resolveUploadFolder(donViSoHuu: string): Promise<FolderResolveResult> {
+    this.assertWriteEnabled();
+    const wanted = (donViSoHuu ?? '').trim().toLowerCase();
+    const norm = (s: string): string => s.trim().toLowerCase();
+    const site = await resolveSiteId(this.accessToken);
+    const list = await resolveListId(this.accessToken);
+    const drives = await getDrives(this.accessToken, site.id);
+    const drive = drives.find((d) => norm(d.name) === norm(list.displayName)) ?? drives[0];
+    if (!drive) {
+      return { found: false, candidates: [] };
+    }
+    const children = await graphFetch<{ value: { id: string; name: string; folder?: unknown }[] }>(
+      `/drives/${drive.id}/root/children?$select=id,name,folder&$top=200`,
+      { accessToken: this.accessToken }
+    );
+    const folders = (children.value ?? []).filter((c) => c.folder);
+    const candidates = folders.map((f) => f.name);
+    if (!wanted) {
+      return { found: false, driveId: drive.id, driveName: drive.name, candidates };
+    }
+    const hit = folders.find((f) => norm(f.name) === wanted || norm(f.name).includes(wanted));
+    return hit
+      ? { found: true, driveId: drive.id, driveName: drive.name, folderId: hit.id, folderName: hit.name, candidates }
+      : { found: false, driveId: drive.id, driveName: drive.name, candidates };
+  }
+
+  /**
+   * Upload 1 file (simple PUT /content) vào folder. Trả driveItemId + webUrl + listItemId.
+   * Giới hạn MAX_UPLOAD_BYTES (simple upload). File lớn hơn → ném lỗi rõ (resumable = follow-up).
+   */
+  async uploadFile(
+    driveId: string,
+    folderId: string,
+    fileName: string,
+    buffer: ArrayBuffer,
+    contentType: string
+  ): Promise<{ driveItemId: string; webUrl: string; listItemId: string }> {
+    this.assertWriteEnabled();
+    if (buffer.byteLength > MAX_UPLOAD_BYTES) {
+      throw new UploadTooLargeError(buffer.byteLength);
+    }
+    const enc = encodeURIComponent(fileName);
+    const item = await this.graphWrite<{ id: string; webUrl: string }>(
+      `/drives/${driveId}/items/${folderId}:/${enc}:/content`,
+      { method: 'PUT', body: buffer as BodyInit, headers: { 'Content-Type': contentType } }
+    );
+    const li = await graphFetch<{ id: string }>(
+      `/drives/${driveId}/items/${item.id}/listItem?$select=id`,
+      { accessToken: this.accessToken }
+    );
+    return { driveItemId: item.id, webUrl: item.webUrl, listItemId: li.id };
+  }
+
+  /** PATCH metadata (listItem fields) — siteId/listId từ resolve. Retry do caller xử lý. */
+  async patchMetadata(siteId: string, listId: string, listItemId: string, fields: Record<string, string>): Promise<void> {
+    this.assertWriteEnabled();
+    await this.graphWrite<unknown>(
+      `/sites/${siteId}/lists/${listId}/items/${listItemId}/fields`,
+      { method: 'PATCH', body: JSON.stringify(fields), headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
+  /** Xóa driveItem (rollback). Không ném (best-effort). */
+  async deleteUploadedFile(driveId: string, driveItemId: string): Promise<void> {
+    this.assertWriteEnabled();
+    await this.graphWrite<unknown>(`/drives/${driveId}/items/${driveItemId}`, { method: 'DELETE' }).catch(() => undefined);
+  }
+
+  /**
+   * Orchestrator tạo văn bản từ upload (app-only). Giả định route đã: assertCanWriteDms +
+   * validate + duplicate-check. Thực hiện: resolve folder → upload PDF → (optional) bản mềm →
+   * PATCH metadata (retry 2) → rollback xóa file nếu PATCH vẫn fail.
+   */
+  async createDocumentFromUpload(req: CreateUploadRequest): Promise<CreateUploadResult> {
+    this.assertWriteEnabled();
+    const site = await resolveSiteId(this.accessToken);
+    const list = await resolveListId(this.accessToken);
+    const folder = await this.resolveUploadFolder(req.donViSoHuu);
+    if (!folder.found || !folder.driveId || !folder.folderId) {
+      throw new FolderNotFoundError(req.donViSoHuu, folder.candidates);
+    }
+    const driveId = folder.driveId;
+
+    // 1) PDF (bắt buộc) — fail là fail luôn.
+    const pdf = await this.uploadFile(driveId, folder.folderId, req.fileName, req.fileBuffer, 'application/pdf');
+
+    // 2) Bản mềm (tùy chọn) — fail thì giữ PDF + warning.
+    let editableWebUrl = '';
+    let editableDriveItemId: string | undefined;
+    let warning: string | undefined;
+    if (req.editableFileBuffer && req.editableFileName) {
+      try {
+        const ed = await this.uploadFile(driveId, folder.folderId, req.editableFileName, req.editableFileBuffer, 'application/octet-stream');
+        editableWebUrl = ed.webUrl;
+        editableDriveItemId = ed.driveItemId;
+      } catch {
+        warning = 'Bản mềm chưa tải lên được — đã giữ PDF, HasEditableSource=false.';
+      }
+    }
+
+    // 3) PATCH metadata (retry 2) → rollback nếu vẫn fail.
+    const fields: Record<string, string> = {
+      ...req.metadata,
+      EditableSourceUrl: editableWebUrl,
+      HasEditableSource: editableWebUrl ? 'true' : 'false',
+    };
+    let patched = false;
+    let lastErr: unknown;
+    for (let attempt = 0; attempt < 3 && !patched; attempt++) {
+      try {
+        await this.patchMetadata(site.id, list.id, pdf.listItemId, fields);
+        patched = true;
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+    if (!patched) {
+      // ROLLBACK AUDIT LOG (an toàn, không token/secret) — xóa file đã upload vì PATCH metadata fail.
+      // eslint-disable-next-line no-console
+      console.error(
+        '[dms-write][rollback]',
+        JSON.stringify({
+          reason: 'patch-metadata-failed',
+          soVanBan: req.metadata.SoVanBan ?? '',
+          fileName: req.fileName,
+          driveId,
+          pdfDriveItemId: pdf.driveItemId,
+          editableDriveItemId: editableDriveItemId ?? null,
+          error: lastErr instanceof Error ? lastErr.message : String(lastErr),
+        })
+      );
+      await this.deleteUploadedFile(driveId, pdf.driveItemId);
+      if (editableDriveItemId) {
+        await this.deleteUploadedFile(driveId, editableDriveItemId);
+      }
+      throw new PatchRolledBackError(lastErr);
+    }
+
+    return {
+      listItemId: pdf.listItemId,
+      driveItemId: pdf.driveItemId,
+      webUrl: pdf.webUrl,
+      hasEditableSource: !!editableWebUrl,
+      warning,
+    };
+  }
+
+  /**
+   * Low-level Graph write — chặn cứng nếu flag tắt. Dùng bởi các method write ở trên.
    */
   protected async graphWrite<T = unknown>(path: string, options: Omit<GraphFetchOptions, 'accessToken'>): Promise<T> {
     this.assertWriteEnabled();
