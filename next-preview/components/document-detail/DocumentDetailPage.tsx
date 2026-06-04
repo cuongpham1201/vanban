@@ -7,51 +7,63 @@ import DocumentHeader from './DocumentHeader';
 import DocumentPreview from './DocumentPreview';
 import MetadataPanel from './MetadataPanel';
 
-interface DocsResponse {
+interface DetailResponse {
   ok: boolean;
-  documents?: IDocument[];
+  document?: IDocument;
   error?: string;
 }
 
-// Trang chi tiết — reuse /api/documents (cache) + tìm theo id client-side (read-only, không API mới).
+// Trang chi tiết — gọi GET /api/documents/[id] (read-only, server tìm trong cache dùng chung).
+// Không fetch-all rồi find client-side nữa. Phase 4.5 data wiring.
 export default function DocumentDetailPage({ id }: { id: string }): React.ReactElement {
-  const [raw, setRaw] = React.useState<IDocument[] | null>(null);
+  const [doc, setDoc] = React.useState<IDocument | null>(null);
+  const [status, setStatus] = React.useState<'loading' | 'ok' | 'notfound' | 'error'>('loading');
   const [error, setError] = React.useState<string | undefined>();
 
   React.useEffect(() => {
     let alive = true;
-    fetch('/api/documents', { credentials: 'same-origin' })
+    setStatus('loading');
+    fetch(`/api/documents/${encodeURIComponent(id)}`, { credentials: 'same-origin' })
       .then(async (r) => {
-        const j = (await r.json()) as DocsResponse;
-        if (!r.ok || !j.ok) {
+        const j = (await r.json()) as DetailResponse;
+        if (r.status === 404) {
+          if (alive) setStatus('notfound');
+          return;
+        }
+        if (!r.ok || !j.ok || !j.document) {
           throw new Error(j?.error ?? `Lỗi tải dữ liệu (HTTP ${r.status}).`);
         }
         if (alive) {
-          setRaw(j.documents ?? []);
+          setDoc(j.document);
+          setStatus('ok');
         }
       })
-      .catch((e: Error) => alive && setError(e.message));
+      .catch((e: Error) => {
+        if (alive) {
+          setError(e.message);
+          setStatus('error');
+        }
+      });
     return () => {
       alive = false;
     };
-  }, []);
+  }, [id]);
 
-  if (error) {
+  if (status === 'error') {
     return (
       <div className="dd-root">
         <div className="dd-empty" style={{ padding: 24, color: 'var(--danger-700)' }}>Không tải được dữ liệu: {error}</div>
       </div>
     );
   }
-  if (raw === null) {
+  if (status === 'loading') {
     return (
       <div className="dd-root">
         <div className="dd-empty" style={{ padding: 24 }}>Đang tải văn bản…</div>
       </div>
     );
   }
-  const found = raw.find((d) => d.id === id);
-  if (!found) {
+  if (status === 'notfound' || !doc) {
     return (
       <div className="dd-root">
         <div className="dd-empty" style={{ padding: 24 }}>
@@ -60,13 +72,13 @@ export default function DocumentDetailPage({ id }: { id: string }): React.ReactE
       </div>
     );
   }
-  const doc = toDetailDoc(found);
+  const detail = toDetailDoc(doc);
   return (
     <div className="dd-root">
-      <DocumentHeader doc={doc} />
+      <DocumentHeader doc={detail} />
       <div className="split">
-        <DocumentPreview doc={doc} />
-        <MetadataPanel doc={doc} />
+        <DocumentPreview doc={detail} />
+        <MetadataPanel doc={detail} />
       </div>
     </div>
   );
