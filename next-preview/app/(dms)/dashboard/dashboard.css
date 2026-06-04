@@ -1,0 +1,72 @@
+/* Dashboard nghiệp vụ — port từ dms-design/Dashboard.html <style>.
+   Scope toàn bộ dưới .db-root để không ảnh hưởng UI khác. */
+
+.db-root { height: 100%; overflow: auto; background: var(--gray-050); }
+.db-root .page { padding: var(--sp-6) var(--sp-8) var(--sp-12); max-width: 1280px; }
+
+.db-root .pagehead { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: var(--sp-6); gap: 16px; flex-wrap: wrap; }
+.db-root .pagehead h1 { margin: 0 0 4px; font-size: 26px; font-weight: 700; letter-spacing: -.01em; }
+
+.db-error { background: var(--danger-100); color: var(--danger-700); border: 1px solid var(--danger-200, #f3c2c6);
+  border-radius: var(--r-md); padding: 12px 16px; font-size: var(--fs-sm); margin-bottom: var(--sp-6); }
+.db-empty { padding: 14px 0; font-size: var(--fs-sm); color: var(--gray-500); }
+
+/* KPI cards */
+.db-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: var(--sp-6); }
+.db-root .kpi { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--r-lg);
+  padding: 16px 16px 14px; box-shadow: var(--sh-1); position: relative; overflow: hidden; }
+.db-root .kpi .ic { width: 32px; height: 32px; border-radius: var(--r-sm); display: grid; place-items: center; margin-bottom: 12px; }
+.db-root .kpi .ic svg { width: 18px; height: 18px; }
+.db-root .kpi .num { font-size: 26px; font-weight: 700; letter-spacing: -.02em; line-height: 1; }
+.db-root .kpi .lbl { font-size: var(--fs-xs); color: var(--gray-500); margin-top: 6px; font-weight: 500; }
+.db-root .kpi .delta { position: absolute; top: 16px; right: 16px; font-size: var(--fs-2xs); font-weight: 700; }
+
+/* Truy cập nhanh */
+.db-quick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: var(--sp-6); }
+.db-quick-card { display: flex; gap: 12px; align-items: center; padding: 14px 16px; background: var(--white);
+  border: 1px solid var(--gray-200); border-radius: var(--r-lg); box-shadow: var(--sh-1);
+  text-decoration: none; color: inherit; transition: border-color .12s, box-shadow .12s; }
+.db-quick-card:hover { border-color: var(--navy-300); box-shadow: var(--sh-2, 0 4px 12px -4px rgba(20,73,139,.18)); }
+.db-quick-ic { width: 40px; height: 40px; border-radius: var(--r-sm); display: grid; place-items: center; flex-shrink: 0;
+  background: var(--gray-100); color: var(--navy-600); }
+.db-quick-card.primary .db-quick-ic { background: var(--navy-600); color: #fff; }
+.db-quick-ic svg { width: 20px; height: 20px; }
+.db-quick-t { display: block; font-weight: 650; }
+.db-quick-d { display: block; font-size: var(--fs-xs); color: var(--gray-500); margin-top: 2px; }
+
+/* Layout 2 cột */
+.db-root .grid2 { display: grid; grid-template-columns: 1.6fr 1fr; gap: 16px; align-items: start; }
+.db-root .widget { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--r-lg); box-shadow: var(--sh-1); margin-bottom: 16px; }
+.db-root .whead { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; border-bottom: 1px solid var(--gray-150); }
+.db-root .whead h2 { margin: 0; font-size: var(--fs-h3); font-weight: 650; }
+.db-root .whead a { font-size: var(--fs-xs); color: var(--navy-600); font-weight: 600; text-decoration: none; }
+.db-root .wbody { padding: 6px 18px 14px; }
+
+/* List item (văn bản mới nhất) */
+.db-root .li { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--gray-100); color: inherit; }
+.db-root .li:last-child { border-bottom: 0; }
+.db-root .li:hover { background: var(--gray-050); }
+.db-root .li .ficon { width: 30px; height: 34px; border-radius: var(--r-xs); flex-shrink: 0; display: grid; place-items: center;
+  font-size: 8px; font-weight: 800; background: var(--red-100); color: var(--red-600); }
+.db-root .li .ficon.doc { background: var(--navy-050); color: var(--navy-600); }
+.db-root .li .num { font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 600; color: var(--navy-600); }
+.db-root .li .ti { font-size: var(--fs-sm); font-weight: 500; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-root .li .sub { font-size: var(--fs-2xs); color: var(--gray-500); flex-shrink: 0; }
+
+/* Bar chart */
+.db-root .bar { display: flex; align-items: center; gap: 12px; padding: 9px 0; }
+.db-root .bar .lbl { width: 150px; font-size: var(--fs-sm); color: var(--gray-700); flex-shrink: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-root .bar .track { flex: 1; height: 8px; background: var(--gray-150); border-radius: var(--r-full); overflow: hidden; }
+.db-root .bar .track > i { display: block; height: 100%; background: var(--navy-500); border-radius: var(--r-full); }
+.db-root .bar .v { width: 48px; text-align: right; font-size: var(--fs-xs); font-weight: 600; color: var(--gray-600); }
+
+@media (max-width: 1100px) {
+  .db-kpis { grid-template-columns: repeat(2, 1fr); }
+  .db-quick { grid-template-columns: 1fr; }
+  .db-root .grid2 { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .db-kpis { grid-template-columns: repeat(2, 1fr); }
+  .db-root .page { padding: var(--sp-4); }
+}

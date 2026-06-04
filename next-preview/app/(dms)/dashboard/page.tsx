@@ -1,12 +1,12 @@
 import * as React from 'react';
-import DashboardLanding from '@/components/dashboard/DashboardLanding';
+import './dashboard.css';
+import DashboardPage from '@/components/dashboard/DashboardPage';
 
-// Trang chủ khu vực điều hành — landing nhẹ (quick actions + KPI tóm tắt).
-// KPI lấy từ GET /api/dashboard (aggregate nhẹ, read-only); degrade về placeholder nếu lỗi.
+// Trang chủ — Dashboard nghiệp vụ (read-only). Số liệu thật từ GET /api/documents.
 export const metadata = {
   title: 'BHL - Văn bản điều hành',
 };
 
-export default function DashboardPage(): React.ReactElement {
-  return <DashboardLanding />;
+export default function DashboardRoute(): React.ReactElement {
+  return <DashboardPage />;
 }
