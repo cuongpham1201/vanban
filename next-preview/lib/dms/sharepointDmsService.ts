@@ -234,6 +234,35 @@ export class SharePointDmsService {
     );
   }
 
+  /**
+   * Cập nhật metadata 1 listItem (edit tại chỗ). Coerce theo schema (number/boolean/dateTime/choice;
+   * omit person/lookup/readOnly/choice-invalid kèm skipped). PATCH rồi đọc lại fields + updatedAt.
+   * KHÔNG đụng file content / tên / folder.
+   */
+  async updateMetadata(
+    listItemId: string,
+    rawFields: Record<string, string>
+  ): Promise<{ fields: Record<string, unknown>; skipped: string[]; updatedAt?: string }> {
+    this.assertWriteEnabled();
+    const site = await resolveSiteId(this.accessToken);
+    const list = await resolveListId(this.accessToken);
+    const { coerced, skipped } = await this.coerceFields(rawFields);
+    if (Object.keys(coerced).length === 0) {
+      // Không có field hợp lệ để ghi → đọc lại hiện trạng, trả skipped để UI báo.
+      const cur = await graphFetch<{ lastModifiedDateTime?: string; fields?: Record<string, unknown> }>(
+        `/sites/${site.id}/lists/${list.id}/items/${listItemId}?$expand=fields`,
+        { accessToken: this.accessToken }
+      );
+      return { fields: cur.fields ?? {}, skipped, updatedAt: cur.lastModifiedDateTime };
+    }
+    await this.patchMetadata(site.id, list.id, listItemId, coerced);
+    const updated = await graphFetch<{ lastModifiedDateTime?: string; fields?: Record<string, unknown> }>(
+      `/sites/${site.id}/lists/${list.id}/items/${listItemId}?$expand=fields`,
+      { accessToken: this.accessToken }
+    );
+    return { fields: updated.fields ?? {}, skipped, updatedAt: updated.lastModifiedDateTime };
+  }
+
   /** Lấy schema cột (cache theo instance) → {type, choices, readOnly} cho coerce kiểu. */
   private async getListColumns(): Promise<Map<string, { type: string; choices?: string[]; readOnly: boolean }>> {
     if (this._columns) {

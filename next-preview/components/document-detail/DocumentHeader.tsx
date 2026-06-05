@@ -7,7 +7,17 @@ import Icon from '@/components/shell/Icon';
 import { DetailDoc } from './documentDetailTypes';
 
 // DocHead — port từ DocumentDetail.html .dochead.
-export default function DocumentHeader({ doc, returnUrl }: { doc: DetailDoc; returnUrl?: string }): React.ReactElement {
+export default function DocumentHeader({
+  doc,
+  returnUrl,
+  canWrite,
+  onEdit,
+}: {
+  doc: DetailDoc;
+  returnUrl?: string;
+  canWrite?: boolean;
+  onEdit?: () => void;
+}): React.ReactElement {
   const router = useRouter();
   // "Quay lại kết quả": có returnUrl → về đúng URL tìm kiếm (giữ filter); không → /search.
   const goBack = (): void => router.push(returnUrl ?? '/search');
@@ -44,6 +54,11 @@ export default function DocumentHeader({ doc, returnUrl }: { doc: DetailDoc; ret
           <h1>{doc.title}</h1>
         </div>
         <div className="actions">
+          {canWrite && (
+            <button className="btn btn-subtle" title="Sửa metadata văn bản" onClick={onEdit}>
+              <Icon name="admin" /> Sửa metadata
+            </button>
+          )}
           <button className="btn btn-ghost btn-icon" title="Ghim"><Icon name="pin" /></button>
           <button className="btn btn-ghost btn-icon" title="Chia sẻ"><Icon name="share" /></button>
           <Link
