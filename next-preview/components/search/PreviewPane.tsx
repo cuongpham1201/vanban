@@ -7,7 +7,7 @@ import { SearchDoc } from './searchTypes';
 
 // Khung xem nhanh bên phải — port từ sc-app.js renderPreview.
 // Chưa có PDF viewer thật (mock trang văn bản). "Mở chi tiết" để Phase 3 (route /documents/[id]).
-export default function PreviewPane({ doc }: { doc: SearchDoc | null }): React.ReactElement {
+export default function PreviewPane({ doc, openHref }: { doc: SearchDoc | null; openHref?: string }): React.ReactElement {
   if (!doc) {
     return (
       <aside className="preview scrollbar">
@@ -53,7 +53,7 @@ export default function PreviewPane({ doc }: { doc: SearchDoc | null }): React.R
           <Link
             className="btn btn-primary"
             style={{ flex: 1, justifyContent: 'center' }}
-            href={`/documents/${encodeURIComponent(doc.id)}`}
+            href={openHref ?? `/documents/${encodeURIComponent(doc.id)}`}
           >
             Mở chi tiết
           </Link>

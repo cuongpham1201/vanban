@@ -2,15 +2,28 @@
 
 import * as React from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import Icon from '@/components/shell/Icon';
 import { DetailDoc } from './documentDetailTypes';
 
 // DocHead — port từ DocumentDetail.html .dochead.
-export default function DocumentHeader({ doc }: { doc: DetailDoc }): React.ReactElement {
+export default function DocumentHeader({ doc, returnUrl }: { doc: DetailDoc; returnUrl?: string }): React.ReactElement {
+  const router = useRouter();
+  // "Quay lại kết quả": có returnUrl → về đúng URL tìm kiếm (giữ filter); không → /search.
+  const goBack = (): void => router.push(returnUrl ?? '/search');
   return (
     <div className="dochead">
+      <button
+        type="button"
+        className="btn btn-ghost"
+        onClick={goBack}
+        style={{ marginBottom: 8, paddingLeft: 0, fontSize: 'var(--fs-sm)' }}
+        title={returnUrl ? 'Quay lại kết quả tìm kiếm (giữ bộ lọc)' : 'Về Trung tâm tìm kiếm'}
+      >
+        ← Quay lại kết quả
+      </button>
       <div className="crumb">
-        <Link href="/search">Tìm kiếm</Link> / <span>{doc.num}</span>
+        <Link href={returnUrl ?? '/search'}>Tìm kiếm</Link> / <span>{doc.num}</span>
       </div>
       <div className="titlerow">
         <div className={`ficon ${doc.type === 'doc' ? 'doc' : ''}`}>{doc.type === 'doc' ? 'DOC' : 'PDF'}</div>

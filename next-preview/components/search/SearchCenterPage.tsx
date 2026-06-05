@@ -34,16 +34,60 @@ function sortDocs(docs: IDocument[], sort: SortKey): IDocument[] {
 
 export default function SearchCenterPage(): React.ReactElement {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [raw, setRaw] = React.useState<IDocument[] | null>(null);
   const [error, setError] = React.useState<string | undefined>();
-  // Seed từ ?q= (vd điều hướng từ ô tìm kiếm trên AppBar). Chỉ dùng làm giá trị khởi tạo.
+  // Seed TOÀN BỘ state từ URL (q · view · sort · facets · sel) → back/refresh giữ nguyên.
   const [query, setQuery] = React.useState(searchParams.get('q') ?? '');
-  const [selected, setSelected] = React.useState<Record<string, Set<string>>>({});
-  const [mode, setMode] = React.useState<ViewMode>('3col');
-  const [selectedId, setSelectedId] = React.useState<string | null>(null);
-  const [sort, setSort] = React.useState<SortKey>('relevance');
-  const router = useRouter();
-  const openDetail = (id: string): void => router.push(`/documents/${encodeURIComponent(id)}`);
+  const [selected, setSelected] = React.useState<Record<string, Set<string>>>(() => {
+    const init: Record<string, Set<string>> = {};
+    for (const def of FACET_DEFS) {
+      const vals = searchParams.getAll(def.key);
+      if (vals.length) {
+        init[def.key] = new Set(vals);
+      }
+    }
+    return init;
+  });
+  const [mode, setMode] = React.useState<ViewMode>(() => {
+    const v = searchParams.get('view');
+    return v === 'list' || v === 'cards' ? v : '3col';
+  });
+  const [selectedId, setSelectedId] = React.useState<string | null>(searchParams.get('sel'));
+  const [sort, setSort] = React.useState<SortKey>(() => {
+    const s = searchParams.get('sort');
+    return s === 'newest' || s === 'num' ? s : 'relevance';
+  });
+
+  // Build query string từ state — dùng cho URL sync + returnUrl.
+  const buildQs = React.useCallback((): string => {
+    const p = new URLSearchParams();
+    const q = query.trim();
+    if (q) p.set('q', q);
+    if (mode !== '3col') p.set('view', mode);
+    if (sort !== 'relevance') p.set('sort', sort);
+    for (const [key, set] of Object.entries(selected)) {
+      for (const v of set) {
+        p.append(key, v);
+      }
+    }
+    if (selectedId) p.set('sel', selectedId);
+    return p.toString();
+  }, [query, mode, sort, selected, selectedId]);
+
+  // Sync state → URL (replace, không thêm history). Seed từ initializer nên không gây loop.
+  React.useEffect(() => {
+    const qs = buildQs();
+    router.replace(qs ? `/search?${qs}` : '/search', { scroll: false });
+  }, [buildQs, router]);
+
+  // Link sang chi tiết kèm returnUrl = URL tìm kiếm hiện tại (để "Quay lại kết quả").
+  const detailHref = (id: string): string => {
+    const qs = buildQs();
+    const ret = qs ? `/search?${qs}` : '/search';
+    return `/documents/${encodeURIComponent(id)}?returnUrl=${encodeURIComponent(ret)}`;
+  };
+  const openDetail = (id: string): void => router.push(detailHref(id));
 
   React.useEffect(() => {
     let alive = true;
@@ -201,7 +245,9 @@ export default function SearchCenterPage(): React.ReactElement {
           />
         )}
 
-        {mode === '3col' && <PreviewPane doc={selectedDoc} />}
+        {mode === '3col' && (
+          <PreviewPane doc={selectedDoc} openHref={selectedDoc ? detailHref(selectedDoc.id) : undefined} />
+        )}
       </div>
     </div>
   );

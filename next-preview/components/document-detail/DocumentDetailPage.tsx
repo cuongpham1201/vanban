@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { useSearchParams } from 'next/navigation';
 import { IDocument } from '@dms/models/IDocument';
 import { toDetailDoc } from './documentDetailTypes';
 import DocumentHeader from './DocumentHeader';
@@ -16,6 +17,10 @@ interface DetailResponse {
 // Trang chi tiết — gọi GET /api/documents/[id] (read-only, server tìm trong cache dùng chung).
 // Không fetch-all rồi find client-side nữa. Phase 4.5 data wiring.
 export default function DocumentDetailPage({ id }: { id: string }): React.ReactElement {
+  const searchParams = useSearchParams();
+  // returnUrl = URL kết quả tìm kiếm (đã encode) để "Quay lại kết quả"; chỉ chấp nhận path nội bộ.
+  const rawReturn = searchParams.get('returnUrl');
+  const returnUrl = rawReturn && rawReturn.startsWith('/') ? rawReturn : undefined;
   const [doc, setDoc] = React.useState<IDocument | null>(null);
   const [status, setStatus] = React.useState<'loading' | 'ok' | 'notfound' | 'error'>('loading');
   const [error, setError] = React.useState<string | undefined>();
@@ -75,7 +80,7 @@ export default function DocumentDetailPage({ id }: { id: string }): React.ReactE
   const detail = toDetailDoc(doc);
   return (
     <div className="dd-root">
-      <DocumentHeader doc={detail} />
+      <DocumentHeader doc={detail} returnUrl={returnUrl} />
       <div className="split">
         <DocumentPreview doc={detail} />
         <MetadataPanel doc={detail} />

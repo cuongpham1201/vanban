@@ -9,6 +9,11 @@ export const metadata = {
 
 // Next.js đã tự percent-decode route param → KHÔNG decode lại (tránh double-decode
 // gây URIError với id chứa ký tự "%"). Truyền thẳng params.id.
+// Suspense vì DocumentDetailPage dùng useSearchParams() (đọc returnUrl).
 export default function DocumentDetailRoute({ params }: { params: { id: string } }): React.ReactElement {
-  return <DocumentDetailPage id={params.id} />;
+  return (
+    <React.Suspense fallback={<div className="dd-root"><div className="dd-empty" style={{ padding: 24 }}>Đang tải…</div></div>}>
+      <DocumentDetailPage id={params.id} />
+    </React.Suspense>
+  );
 }
