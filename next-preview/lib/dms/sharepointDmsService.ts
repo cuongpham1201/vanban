@@ -96,6 +96,7 @@ export interface CreateUploadResult {
  */
 export class SharePointDmsService {
   private readonly accessToken: string;
+  private _columns?: Map<string, { type: string; choices?: string[]; readOnly: boolean }>;
 
   constructor(accessToken: string) {
     this.accessToken = accessToken;
@@ -225,12 +226,83 @@ export class SharePointDmsService {
   }
 
   /** PATCH metadata (listItem fields) — siteId/listId từ resolve. Retry do caller xử lý. */
-  async patchMetadata(siteId: string, listId: string, listItemId: string, fields: Record<string, string>): Promise<void> {
+  async patchMetadata(siteId: string, listId: string, listItemId: string, fields: Record<string, unknown>): Promise<void> {
     this.assertWriteEnabled();
     await this.graphWrite<unknown>(
       `/sites/${siteId}/lists/${listId}/items/${listItemId}/fields`,
       { method: 'PATCH', body: JSON.stringify(fields), headers: { 'Content-Type': 'application/json' } }
     );
+  }
+
+  /** Lấy schema cột (cache theo instance) → {type, choices, readOnly} cho coerce kiểu. */
+  private async getListColumns(): Promise<Map<string, { type: string; choices?: string[]; readOnly: boolean }>> {
+    if (this._columns) {
+      return this._columns;
+    }
+    const site = await resolveSiteId(this.accessToken);
+    const list = await resolveListId(this.accessToken);
+    const r = await graphFetch<{ value: Record<string, unknown>[] }>(
+      `/sites/${site.id}/lists/${list.id}/columns?$top=200`,
+      { accessToken: this.accessToken }
+    );
+    const m = new Map<string, { type: string; choices?: string[]; readOnly: boolean }>();
+    for (const c of r.value ?? []) {
+      const name = c.name as string;
+      const type = c.text ? 'text' : c.number ? 'number' : c.boolean ? 'boolean' : c.dateTime ? 'dateTime'
+        : c.choice ? 'choice' : c.hyperlinkOrPicture ? 'hyperlink' : c.personOrGroup ? 'person' : c.lookup ? 'lookup' : 'other';
+      m.set(name, { type, choices: (c.choice as { choices?: string[] } | undefined)?.choices, readOnly: !!c.readOnly });
+    }
+    this._columns = m;
+    return m;
+  }
+
+  /**
+   * Coerce field theo kiểu cột SharePoint → tránh 400. Bỏ qua: cột không tồn tại, readOnly,
+   * person/lookup (không set từ free-text), choice không hợp lệ, giá trị rỗng. Trả {coerced, skipped}.
+   */
+  private async coerceFields(fields: Record<string, string>): Promise<{ coerced: Record<string, unknown>; skipped: string[] }> {
+    const cols = await this.getListColumns();
+    const coerced: Record<string, unknown> = {};
+    const skipped: string[] = [];
+    for (const [name, raw] of Object.entries(fields)) {
+      const val = (raw ?? '').trim();
+      const col = cols.get(name);
+      if (!col || col.readOnly) {
+        if (val) skipped.push(name);
+        continue;
+      }
+      if (!val) {
+        continue; // omit field rỗng
+      }
+      switch (col.type) {
+        case 'number': {
+          const n = Number(val);
+          if (Number.isNaN(n)) { skipped.push(name); } else { coerced[name] = n; }
+          break;
+        }
+        case 'boolean':
+          coerced[name] = val === 'true' || val === '1' || val.toLowerCase() === 'yes';
+          break;
+        case 'dateTime': {
+          // date-only → thêm giờ + Z; giữ nguyên nếu đã có time.
+          coerced[name] = /^\d{4}-\d{2}-\d{2}$/.test(val) ? `${val}T00:00:00Z` : val;
+          break;
+        }
+        case 'choice':
+          if (col.choices && col.choices.includes(val)) { coerced[name] = val; } else { skipped.push(name); }
+          break;
+        case 'hyperlink':
+          coerced[name] = { Url: val };
+          break;
+        case 'person':
+        case 'lookup':
+          skipped.push(name); // không set từ free-text
+          break;
+        default:
+          coerced[name] = val; // text/other
+      }
+    }
+    return { coerced, skipped };
   }
 
   /** Xóa driveItem (rollback). Không ném (best-effort). */
@@ -272,16 +344,21 @@ export class SharePointDmsService {
     }
 
     // 3) PATCH metadata (retry 2) → rollback nếu vẫn fail.
-    const fields: Record<string, string> = {
+    const rawFields: Record<string, string> = {
       ...req.metadata,
       EditableSourceUrl: editableWebUrl,
       HasEditableSource: editableWebUrl ? 'true' : 'false',
     };
+    // Coerce theo schema cột (number/boolean/dateTime/choice/person) → tránh Graph 400.
+    const { coerced, skipped } = await this.coerceFields(rawFields);
+    if (skipped.length) {
+      warning = [warning, `Bỏ qua field không hợp lệ/không set được: ${skipped.join(', ')}`].filter(Boolean).join(' · ');
+    }
     let patched = false;
     let lastErr: unknown;
     for (let attempt = 0; attempt < 3 && !patched; attempt++) {
       try {
-        await this.patchMetadata(site.id, list.id, pdf.listItemId, fields);
+        await this.patchMetadata(site.id, list.id, pdf.listItemId, coerced);
         patched = true;
       } catch (e) {
         lastErr = e;
