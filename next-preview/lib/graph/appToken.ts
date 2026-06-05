@@ -31,7 +31,18 @@ export async function getAppOnlyGraphToken(): Promise<string> {
   if (!isDmsWriteEnabled()) {
     throw new DmsWriteError('DMS write is disabled', 403);
   }
+  return mintAppToken();
+}
 
+/**
+ * App-only token cho READ-ONLY (vd proxy stream PDF). KHÔNG gate write flag vì đây là ĐỌC;
+ * mọi thao tác WRITE vẫn bị chặn riêng bởi assertWriteEnabled trong SharePointDmsService.
+ */
+export async function getAppOnlyGraphTokenReadOnly(): Promise<string> {
+  return mintAppToken();
+}
+
+async function mintAppToken(): Promise<string> {
   if (_cache && Date.now() < _cache.expEpochMs) {
     return _cache.token;
   }
