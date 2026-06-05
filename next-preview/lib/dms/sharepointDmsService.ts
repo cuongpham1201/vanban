@@ -77,8 +77,8 @@ export class PatchRolledBackError extends Error {
 export interface CreateUploadRequest {
   fileName: string;
   fileBuffer: ArrayBuffer;
-  donViSoHuu: string; // nhãn folder cấp 1 đầy đủ
-  metadata: Record<string, string>; // internal column names (đã normalize)
+  capLuuTru: string; // nhãn folder cấp 1 (vị trí lưu file) — TÁCH KHỎI DonViSoHuu metadata
+  metadata: Record<string, string>; // internal column names (đã normalize; gồm DonViSoHuu choice nếu có)
   editableFileName?: string;
   editableFileBuffer?: ArrayBuffer;
 }
@@ -256,6 +256,40 @@ export class SharePointDmsService {
     return m;
   }
 
+  /** Choices ĐỘNG từ schema cột SharePoint (nguồn chuẩn, thay FALLBACK). READ-ONLY. */
+  async getMetadataChoices(): Promise<Record<string, string[]>> {
+    const cols = await this.getListColumns();
+    const pick = (name: string): string[] => cols.get(name)?.choices ?? [];
+    return {
+      nhomTaiLieu: pick('NhomTaiLieu'),
+      loaiVanBanPhapLy: pick('LoaiVanBanPhapLy'),
+      loaiTaiLieu: pick('LoaiTaiLieu'),
+      trangThai: pick('TrangThai'),
+      mucDoBaoMat: pick('MucDoBaoMat'),
+      nguonMetadata: pick('NguonMetadata'),
+      metadataConfidence: pick('MetadataConfidence'),
+      donViPhatHanh: pick('DonViPhatHanh'),
+      donViSoHuu: pick('DonViSoHuu'),
+    };
+  }
+
+  /** Danh sách tên folder cấp 1 (cấp lưu trữ) trong DMS Library. READ-ONLY. */
+  async listStorageFolders(): Promise<string[]> {
+    const site = await resolveSiteId(this.accessToken);
+    const list = await resolveListId(this.accessToken);
+    const drives = await getDrives(this.accessToken, site.id);
+    const norm = (s: string): string => s.trim().toLowerCase();
+    const drive = drives.find((d) => norm(d.name) === norm(list.displayName)) ?? drives[0];
+    if (!drive) {
+      return [];
+    }
+    const children = await graphFetch<{ value: { name: string; folder?: unknown }[] }>(
+      `/drives/${drive.id}/root/children?$select=name,folder&$top=200`,
+      { accessToken: this.accessToken }
+    );
+    return (children.value ?? []).filter((c) => c.folder).map((f) => f.name);
+  }
+
   /**
    * Coerce field theo kiểu cột SharePoint → tránh 400. Bỏ qua: cột không tồn tại, readOnly,
    * person/lookup (không set từ free-text), choice không hợp lệ, giá trị rỗng. Trả {coerced, skipped}.
@@ -320,9 +354,9 @@ export class SharePointDmsService {
     this.assertWriteEnabled();
     const site = await resolveSiteId(this.accessToken);
     const list = await resolveListId(this.accessToken);
-    const folder = await this.resolveUploadFolder(req.donViSoHuu);
+    const folder = await this.resolveUploadFolder(req.capLuuTru);
     if (!folder.found || !folder.driveId || !folder.folderId) {
-      throw new FolderNotFoundError(req.donViSoHuu, folder.candidates);
+      throw new FolderNotFoundError(req.capLuuTru, folder.candidates);
     }
     const driveId = folder.driveId;
 

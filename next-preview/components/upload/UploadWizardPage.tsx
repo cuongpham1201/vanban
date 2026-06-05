@@ -24,13 +24,33 @@ export default function UploadWizardPage(): React.ReactElement {
   const [dupMatches, setDupMatches] = React.useState<{ id: string; soVanBan: string; trichYeu: string }[] | null>(null);
   const [result, setResult] = React.useState<PublishResult | null>(null);
   const [idemKey, setIdemKey] = React.useState<string>('');
+  const [dynChoices, setDynChoices] = React.useState<Partial<Record<keyof UploadForm, string[]>> | undefined>();
 
   React.useEffect(() => {
     setIdemKey(typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
     let alive = true;
     fetch('/api/dms/write-status', { credentials: 'same-origin' })
       .then((r) => r.json())
-      .then((j) => alive && setCanWrite(!!j?.canWrite))
+      .then((j) => {
+        if (!alive) return;
+        const cw = !!j?.canWrite;
+        setCanWrite(cw);
+        if (!cw) return;
+        // Nạp choices ĐỘNG từ schema thật (folder cấp lưu trữ + choice cột).
+        fetch('/api/dms/metadata-choices', { credentials: 'same-origin' })
+          .then((r) => r.json())
+          .then((c) => {
+            if (!alive || !c?.ok) return;
+            const ch = c.choices ?? {};
+            setDynChoices({
+              loaiVanBanPhapLy: ch.loaiVanBanPhapLy, loaiTaiLieu: ch.loaiTaiLieu, nhomTaiLieu: ch.nhomTaiLieu,
+              trangThai: ch.trangThai, mucDoBaoMat: ch.mucDoBaoMat, nguonMetadata: ch.nguonMetadata,
+              metadataConfidence: ch.metadataConfidence, donViPhatHanh: ch.donViPhatHanh, donViSoHuu: ch.donViSoHuu,
+              capLuuTru: c.folders,
+            });
+          })
+          .catch(() => undefined);
+      })
       .catch(() => undefined);
     return () => {
       alive = false;
@@ -63,6 +83,7 @@ export default function UploadWizardPage(): React.ReactElement {
       const fd = new FormData();
       fd.append('pdf', file.raw);
       fd.append('metadata', JSON.stringify(form));
+      fd.append('capLuuTru', form.capLuuTru); // folder lưu file (tách khỏi DonViSoHuu metadata)
       fd.append('idempotencyKey', idemKey);
       if (override) {
         fd.append('override', 'true');
@@ -120,7 +141,7 @@ export default function UploadWizardPage(): React.ReactElement {
           )}
           {step === 1 && (
             <div className="panel">
-              <MetadataForm form={form} onChange={onChange} />
+              <MetadataForm form={form} onChange={onChange} dynamicChoices={dynChoices} />
             </div>
           )}
           {step === 2 && (

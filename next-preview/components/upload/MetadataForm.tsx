@@ -3,14 +3,21 @@
 import * as React from 'react';
 import { FIELDS, UploadForm } from './uploadTypes';
 
-// Bước 2 — form metadata V2 (UI). Choices reuse FALLBACK_METADATA_CHOICES qua FIELDS.
+// Bước 2 — form metadata V2 (UI). Choices: ưu tiên dynamicChoices (schema SharePoint thật)
+// rồi mới fallback FIELDS (FALLBACK_METADATA_CHOICES).
 export default function MetadataForm({
   form,
   onChange,
+  dynamicChoices,
 }: {
   form: UploadForm;
   onChange: (k: keyof UploadForm, v: string) => void;
+  dynamicChoices?: Partial<Record<keyof UploadForm, string[]>>;
 }): React.ReactElement {
+  const choicesFor = (f: { key: keyof UploadForm; choices?: string[] }): string[] => {
+    const dyn = dynamicChoices?.[f.key];
+    return dyn && dyn.length > 0 ? dyn : f.choices ?? [];
+  };
   return (
     <>
       <div className="ai-note">
@@ -35,7 +42,7 @@ export default function MetadataForm({
             {f.type === 'select' ? (
               <select className="select" value={form[f.key]} onChange={(e) => onChange(f.key, e.target.value)}>
                 <option value="">— Chọn —</option>
-                {f.choices?.map((c) => (
+                {choicesFor(f).map((c) => (
                   <option key={c} value={c}>{c}</option>
                 ))}
               </select>

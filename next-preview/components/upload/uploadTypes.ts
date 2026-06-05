@@ -17,6 +17,7 @@ export interface UploadForm {
   chuDeNghiepVu: string;
   donViPhatHanh: string;
   donViSoHuu: string;
+  capLuuTru: string; // nhãn folder cấp 1 (vị trí lưu file) — TÁCH khỏi DonViSoHuu metadata
   nguonMetadata: string;
   metadataConfidence: string;
   hasEditableSource: string;
@@ -53,8 +54,9 @@ export const FIELDS: FieldDef[] = [
   { key: 'nhomTaiLieu', label: 'Nhóm tài liệu', type: 'select', choices: C.nhomTaiLieu, required: true },
   { key: 'loaiTaiLieu', label: 'Loại tài liệu', type: 'select', choices: C.loaiTaiLieu },
   { key: 'chuDeNghiepVu', label: 'Chủ đề nghiệp vụ', type: 'text' },
-  { key: 'donViPhatHanh', label: 'Đơn vị phát hành', type: 'text' },
-  { key: 'donViSoHuu', label: 'Đơn vị sở hữu (cấp lưu trữ)', type: 'text' },
+  { key: 'donViPhatHanh', label: 'Đơn vị phát hành', type: 'select', choices: C.donViPhatHanh },
+  { key: 'donViSoHuu', label: 'Đơn vị sở hữu (metadata)', type: 'select', choices: C.capLuuTru },
+  { key: 'capLuuTru', label: 'Cấp lưu trữ — folder lưu file', type: 'select', choices: [], required: true },
   { key: 'nguonMetadata', label: 'Nguồn metadata', type: 'select', choices: C.nguonMetadata },
   { key: 'metadataConfidence', label: 'Độ tin cậy metadata', type: 'select', choices: C.metadataConfidence },
   { key: 'hasEditableSource', label: 'Có bản mềm', type: 'select', choices: ['Có', 'Không'] },

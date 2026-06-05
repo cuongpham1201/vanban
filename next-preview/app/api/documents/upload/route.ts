@@ -108,9 +108,11 @@ export async function POST(req: Request): Promise<NextResponse> {
       return NextResponse.json({ ok: false, error: naming.error ?? 'Không sinh được tên file.' }, { status: 422 });
     }
 
-    const donViSoHuu = metadata.DonViSoHuu ?? '';
-    if (!donViSoHuu) {
-      return NextResponse.json({ ok: false, error: 'Thiếu Đơn vị sở hữu (cấp lưu trữ) để chọn folder.' }, { status: 422 });
+    // Cấp lưu trữ (folder vật lý) TÁCH KHỎI DonViSoHuu (choice metadata).
+    // Ưu tiên field 'capLuuTru'; fallback DonViSoHuu để tương thích ngược.
+    const capLuuTru = ((form.get('capLuuTru') as string | null) ?? metadata.DonViSoHuu ?? '').trim();
+    if (!capLuuTru) {
+      return NextResponse.json({ ok: false, error: 'Thiếu Cấp lưu trữ (folder) để chọn nơi lưu file.' }, { status: 422 });
     }
 
     // 5. App-only token + duplicate-check.
@@ -137,7 +139,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     const result = await svc.createDocumentFromUpload({
       fileName: naming.fileName,
       fileBuffer: pdfBuf,
-      donViSoHuu,
+      capLuuTru,
       metadata,
       editableFileName,
       editableFileBuffer: editableBuf,
