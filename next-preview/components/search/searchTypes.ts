@@ -164,17 +164,33 @@ export const FACET_DEFS: FacetDef[] = [
   { key: 'hasEditableSource', label: 'Bản mềm', open: false, get: (d) => (d.editableSource ? 'Có bản mềm' : 'Thiếu bản mềm') },
 ];
 
-/** Keyword match trên các field chính (không phân biệt hoa thường, bỏ dấu cách dư). */
+/** Chuẩn hóa tiếng Việt: bỏ dấu, đ→d, lowercase (để match không phụ thuộc dấu/hoa thường). */
+export function normalizeVi(s: string): string {
+  return (s ?? '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'd')
+    .toLowerCase()
+    .trim();
+}
+
+/**
+ * Token search: tách query theo khoảng trắng, MỖI token phải xuất hiện trong haystack
+ * (không cần liền nhau). VD "quy xử" → match "quy tắc ứng xử". Bỏ dấu + không phân biệt hoa thường.
+ */
 export function matchesKeyword(d: IDocument, kw: string): boolean {
-  if (!kw) {
+  const tokens = normalizeVi(kw).split(/\s+/).filter(Boolean);
+  if (!tokens.length) {
     return true;
   }
-  const hay = [
-    d.soVanBan, d.trichYeu, d.loaiVanBan, d.loaiVanBanPhapLy, d.loaiTaiLieu, d.nhomTaiLieu,
-    d.chuDeNghiepVu, d.donViPhatHanh, d.donViSoHuu, d.donViSoanThao, d.nguoiKy, d.tags, d.fileName,
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
-  return hay.indexOf(kw.toLowerCase()) !== -1;
+  const hay = normalizeVi(
+    [
+      d.soVanBan, d.trichYeu, d.loaiVanBan, d.loaiVanBanPhapLy, d.loaiTaiLieu, d.nhomTaiLieu,
+      d.chuDeNghiepVu, d.donViPhatHanh, d.donViSoHuu, d.donViSoanThao, d.nguoiKy, d.tags, d.fileName,
+    ]
+      .filter(Boolean)
+      .join(' ')
+  );
+  return tokens.every((t) => hay.includes(t));
 }

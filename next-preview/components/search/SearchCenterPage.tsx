@@ -19,6 +19,19 @@ interface DocsResponse {
   error?: string;
 }
 
+// BUG#7: cache client (module-level) — back từ detail render ngay từ cache, refresh nền.
+let _docsCache: IDocument[] | undefined;
+
+// BUG#2: debounce — không filter/sync URL mỗi ký tự.
+function useDebounced<T>(value: T, ms: number): T {
+  const [v, setV] = React.useState(value);
+  React.useEffect(() => {
+    const t = setTimeout(() => setV(value), ms);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  return v;
+}
+
 function sortDocs(docs: IDocument[], sort: SortKey): IDocument[] {
   if (sort === 'relevance') {
     return docs;
@@ -35,9 +48,9 @@ function sortDocs(docs: IDocument[], sort: SortKey): IDocument[] {
 export default function SearchCenterPage(): React.ReactElement {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [raw, setRaw] = React.useState<IDocument[] | null>(null);
+  const [raw, setRaw] = React.useState<IDocument[] | null>(_docsCache ?? null);
   const [error, setError] = React.useState<string | undefined>();
-  // Seed TOÀN BỘ state từ URL (q · view · sort · facets · sel) → back/refresh giữ nguyên.
+  // Seed TOÀN BỘ state từ URL (q · view · sort · facets · sel).
   const [query, setQuery] = React.useState(searchParams.get('q') ?? '');
   const [selected, setSelected] = React.useState<Record<string, Set<string>>>(() => {
     const init: Record<string, Set<string>> = {};
@@ -59,10 +72,25 @@ export default function SearchCenterPage(): React.ReactElement {
     return s === 'newest' || s === 'num' ? s : 'relevance';
   });
 
-  // Build query string từ state — dùng cho URL sync + returnUrl.
+  const dq = useDebounced(query, 300); // dùng cho filter + URL (BUG#2)
+
+  // BUG#1: đồng bộ ô search Header (AppBar push /search?q=) → cập nhật Search Center.
+  // So với cả query lẫn dq để không clobber khi typing/ghi URL nội bộ.
+  const queryRef = React.useRef(query);
+  queryRef.current = query;
+  const dqRef = React.useRef(dq);
+  dqRef.current = dq;
+  React.useEffect(() => {
+    const urlQ = searchParams.get('q') ?? '';
+    if (urlQ !== queryRef.current && urlQ !== dqRef.current) {
+      setQuery(urlQ);
+    }
+  }, [searchParams]);
+
+  // Build query string từ state (q dùng dq đã debounce) — cho URL sync + returnUrl.
   const buildQs = React.useCallback((): string => {
     const p = new URLSearchParams();
-    const q = query.trim();
+    const q = dq.trim();
     if (q) p.set('q', q);
     if (mode !== '3col') p.set('view', mode);
     if (sort !== 'relevance') p.set('sort', sort);
@@ -73,22 +101,29 @@ export default function SearchCenterPage(): React.ReactElement {
     }
     if (selectedId) p.set('sel', selectedId);
     return p.toString();
-  }, [query, mode, sort, selected, selectedId]);
+  }, [dq, mode, sort, selected, selectedId]);
 
-  // Sync state → URL (replace, không thêm history). Seed từ initializer nên không gây loop.
   React.useEffect(() => {
     const qs = buildQs();
     router.replace(qs ? `/search?${qs}` : '/search', { scroll: false });
   }, [buildQs, router]);
 
-  // Link sang chi tiết kèm returnUrl = URL tìm kiếm hiện tại (để "Quay lại kết quả").
   const detailHref = (id: string): string => {
     const qs = buildQs();
     const ret = qs ? `/search?${qs}` : '/search';
     return `/documents/${encodeURIComponent(id)}?returnUrl=${encodeURIComponent(ret)}`;
   };
-  const openDetail = (id: string): void => router.push(detailHref(id));
+  const openDetail = (id: string): void => router.push(detailHref(id)); // double click / list / card
+  const selectItem = (id: string): void => setSelectedId(id); // single click (3 cột)
+  // BUG#5B: Xem nhanh PDF — chọn item + đảm bảo có preview (chuyển về 3 cột nếu cần).
+  const quickPreview = (id: string): void => {
+    setSelectedId(id);
+    if (mode !== '3col') {
+      setMode('3col');
+    }
+  };
 
+  // BUG#7: fetch nền. Có cache → đã render ngay (raw seeded), fetch để refresh; không cache → fetch lần đầu.
   React.useEffect(() => {
     let alive = true;
     fetch('/api/documents', { credentials: 'same-origin' })
@@ -97,25 +132,20 @@ export default function SearchCenterPage(): React.ReactElement {
         if (!res.ok || !json.ok) {
           throw new Error(json?.error ?? `Lỗi tải dữ liệu (HTTP ${res.status}).`);
         }
+        _docsCache = json.documents ?? [];
         if (alive) {
-          setRaw(json.documents ?? []);
+          setRaw(_docsCache);
         }
       })
-      .catch((e: Error) => alive && setError(e.message));
+      .catch((e: Error) => alive && !_docsCache && setError(e.message));
     return () => {
       alive = false;
     };
   }, []);
 
-  const kw = query.trim();
+  const kw = dq.trim();
+  const afterKeyword = React.useMemo(() => (raw ? raw.filter((d) => matchesKeyword(d, kw)) : []), [raw, kw]);
 
-  // 1) Lọc theo từ khoá.
-  const afterKeyword = React.useMemo(
-    () => (raw ? raw.filter((d) => matchesKeyword(d, kw)) : []),
-    [raw, kw]
-  );
-
-  // 2) Facet counts (tính từ tập đã lọc từ khoá).
   const facetGroups: FacetGroup[] = React.useMemo(
     () =>
       FACET_DEFS.map((def) => {
@@ -132,7 +162,6 @@ export default function SearchCenterPage(): React.ReactElement {
     [afterKeyword]
   );
 
-  // 3) Lọc theo facet đã chọn (OR trong nhóm, AND giữa nhóm).
   const filtered = React.useMemo(
     () =>
       afterKeyword.filter((d) =>
@@ -144,11 +173,7 @@ export default function SearchCenterPage(): React.ReactElement {
     [afterKeyword, selected]
   );
 
-  // 4) Sort + map view model.
-  const viewDocs: SearchDoc[] = React.useMemo(
-    () => sortDocs(filtered, sort).map(toSearchDoc),
-    [filtered, sort]
-  );
+  const viewDocs: SearchDoc[] = React.useMemo(() => sortDocs(filtered, sort).map(toSearchDoc), [filtered, sort]);
 
   const selectedDoc = React.useMemo(
     () => viewDocs.find((v) => v.id === selectedId) ?? viewDocs[0] ?? null,
@@ -179,7 +204,19 @@ export default function SearchCenterPage(): React.ReactElement {
     });
   };
 
-  // ── States ──
+  // BUG#4: quick filter (1 giá trị/facet) — chung state với panel trái + chips + URL + list.
+  const setFacetSingle = (key: string, value: string): void => {
+    setSelected((prev) => {
+      const next: Record<string, Set<string>> = { ...prev };
+      if (value) {
+        next[key] = new Set([value]);
+      } else {
+        delete next[key];
+      }
+      return next;
+    });
+  };
+
   if (error) {
     return (
       <div className="sc-root">
@@ -188,8 +225,6 @@ export default function SearchCenterPage(): React.ReactElement {
     );
   }
   const loading = raw === null;
-
-  const quickLabels = FACET_DEFS.slice(0, 6).map((f) => f.label);
 
   return (
     <div className="sc-root">
@@ -205,25 +240,30 @@ export default function SearchCenterPage(): React.ReactElement {
           <span className="t-xs mut" style={{ fontWeight: 600 }}>
             <Icon name="filter" /> Lọc nhanh:
           </span>
-          {quickLabels.map((l) => (
-            <span className="chip" key={l}>
-              {l} <Icon name="chevdown" />
-            </span>
-          ))}
-          <span className="t-xs mut" style={{ marginLeft: 8 }}>
-            (Mở chế độ “3 cột” để lọc chi tiết)
-          </span>
+          {FACET_DEFS.slice(0, 6).map((def) => {
+            const group = facetGroups.find((g) => g.key === def.key);
+            const cur = selected[def.key] ? Array.from(selected[def.key])[0] ?? '' : '';
+            return (
+              <select
+                key={def.key}
+                className="qf-select"
+                value={cur}
+                onChange={(e) => setFacetSingle(def.key, e.target.value)}
+                title={def.label}
+              >
+                <option value="">{def.label}</option>
+                {group?.items.map((it) => (
+                  <option key={it.value} value={it.value}>{it.value} ({it.count})</option>
+                ))}
+              </select>
+            );
+          })}
         </div>
       )}
 
       <div className="sc-layout">
         {mode === '3col' && (
-          <FilterPanel
-            groups={facetGroups}
-            selected={selected}
-            onToggle={toggleFacet}
-            onClearAll={() => setSelected({})}
-          />
+          <FilterPanel groups={facetGroups} selected={selected} onToggle={toggleFacet} onClearAll={() => setSelected({})} />
         )}
 
         {loading ? (
@@ -231,15 +271,16 @@ export default function SearchCenterPage(): React.ReactElement {
             <div className="sc-empty">Đang tải văn bản…</div>
           </section>
         ) : mode === 'cards' ? (
-          // Lưới thẻ: click → mở trang chi tiết.
-          <CardGrid docs={viewDocs} onSelect={openDetail} />
+          <CardGrid docs={viewDocs} onSelect={openDetail} onOpen={openDetail} onQuick={quickPreview} />
         ) : (
           <DocumentList
             docs={viewDocs}
             total={filtered.length}
             selectedId={effectiveId}
-            // 3 cột: click cập nhật preview. Danh sách (full-width, không preview): click mở chi tiết.
-            onSelect={mode === 'list' ? openDetail : setSelectedId}
+            // 3 cột: single = chọn (preview), double = mở. List: single/double = mở.
+            onSelect={mode === 'list' ? openDetail : selectItem}
+            onOpen={openDetail}
+            onQuick={quickPreview}
             sort={sort}
             onSort={setSort}
           />

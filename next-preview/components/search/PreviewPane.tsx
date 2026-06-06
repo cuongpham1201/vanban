@@ -65,28 +65,22 @@ export default function PreviewPane({ doc, openHref }: { doc: SearchDoc | null; 
         </div>
       </div>
 
-      <div className="pv-doc">
-        <div className="docpage">
-          <div className="gov">
-            <b>CÔNG TY CỔ PHẦN BIA HẠ LONG</b>
-            <br />
-            {doc.donViPH}
-            <br />
-            —————
-            <br />
-            Số: {doc.num}
+      {/* Fast Preview PDF (BUG#5B/#6) — stream qua proxy same-origin; chỉ với PDF id dạng số. */}
+      <div className="pv-fastpdf">
+        {doc.type === 'pdf' && /^\d+$/.test(doc.id) ? (
+          <iframe
+            className="pv-pdfframe"
+            src={`/api/documents/${encodeURIComponent(doc.id)}/file`}
+            title={`Xem nhanh PDF ${doc.num}`}
+          />
+        ) : (
+          <div className="pv-nopdf">
+            <div className="t-sm" style={{ fontWeight: 600, marginBottom: 4 }}>Không có bản PDF xem nhanh</div>
+            <div className="t-xs mut">
+              {doc.type === 'pdf' ? 'Mở chi tiết để xem.' : 'Đây là file không phải PDF — tải xuống để mở.'}
+            </div>
           </div>
-          <div style={{ textAlign: 'center', margin: '14px 0' }}>
-            <b>CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM</b>
-            <br />
-            Độc lập – Tự do – Hạnh phúc
-          </div>
-          <div style={{ textAlign: 'center', fontWeight: 700, margin: '16px 0 8px' }}>{doc.loaiPL.toUpperCase()}</div>
-          <div style={{ textAlign: 'center', fontStyle: 'italic', marginBottom: 14 }}>V/v {doc.title.toLowerCase()}</div>
-          <div style={{ lineHeight: 1.8, color: '#888' }}>
-            {'▔'.repeat(46)}<br />{'▔'.repeat(44)}<br />{'▔'.repeat(46)}<br />{'▔'.repeat(40)}
-          </div>
-        </div>
+        )}
       </div>
 
       <div className="pvtabs">

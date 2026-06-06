@@ -1,15 +1,27 @@
 'use client';
 
 import * as React from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import Icon from './Icon';
 
 // Thanh trên cùng (appbar). Global search là input thật (id="global-search"):
 //  - Ctrl/Cmd+K focus vào nó (xem GlobalShortcuts) khi không ở /search.
-//  - Enter → điều hướng sang /search?q=… (read-only, không gọi API ở đây).
+//  - Enter → điều hướng sang /search?q=… ; khi ĐANG ở /search, mirror URL q để 2 ô search
+//    (header + Search Center) KHÔNG lệch nhau (BUG#1).
 export default function AppBar(): React.ReactElement {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const onSearchPage = pathname === '/search';
+  const urlQ = searchParams.get('q') ?? '';
   const [q, setQ] = React.useState('');
+
+  // Khi ở /search: đồng bộ input header theo URL q (Search Center cập nhật URL → header theo).
+  React.useEffect(() => {
+    if (onSearchPage) {
+      setQ(urlQ);
+    }
+  }, [onSearchPage, urlQ]);
 
   const submit = (): void => {
     const term = q.trim();

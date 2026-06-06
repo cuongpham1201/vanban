@@ -1,20 +1,31 @@
 'use client';
 
 import * as React from 'react';
+import Icon from '@/components/shell/Icon';
 import { SearchDoc } from './searchTypes';
 
-// 1 dòng kết quả — port từ sc-app.js rowHTML.
+// 1 dòng kết quả. Single click = onSelect; double click = onOpen (mở chi tiết);
+// nút 👁 = onQuick (xem nhanh PDF). Nút mắt stopPropagation để không trigger select/open.
 export default function DocumentRow({
   doc,
   selected,
   onSelect,
+  onOpen,
+  onQuick,
 }: {
   doc: SearchDoc;
   selected: boolean;
   onSelect: (id: string) => void;
+  onOpen?: (id: string) => void;
+  onQuick?: (id: string) => void;
 }): React.ReactElement {
   return (
-    <div className={`docrow ${selected ? 'sel' : ''}`} onClick={() => onSelect(doc.id)}>
+    <div
+      className={`docrow ${selected ? 'sel' : ''}`}
+      onClick={() => onSelect(doc.id)}
+      onDoubleClick={() => onOpen?.(doc.id)}
+      title="Nhấn đúp để mở chi tiết"
+    >
       <div className="top">
         <div className={`ficon ${doc.type === 'doc' ? 'doc' : ''}`}>{doc.type === 'doc' ? 'DOC' : 'PDF'}</div>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -28,6 +39,20 @@ export default function DocumentRow({
           <h3>{doc.title}</h3>
         </div>
         <div className="rowbadges">
+          {onQuick && doc.type === 'pdf' && (
+            <button
+              type="button"
+              className="rowquick"
+              title="Xem nhanh PDF"
+              aria-label="Xem nhanh PDF"
+              onClick={(e) => {
+                e.stopPropagation();
+                onQuick(doc.id);
+              }}
+            >
+              <Icon name="search" size={15} />
+            </button>
+          )}
           <span className={`badge ${doc.statusClass}`}>{doc.statusLabel}</span>
           {doc.conf && (
             <span className="conf" title={`Độ tin cậy metadata: ${doc.conf.label} · ${doc.nguon}`}>

@@ -10,7 +10,10 @@ export default function AppShell({ children }: { children: React.ReactNode }): R
   return (
     <div className="dms-shell" style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       <GlobalShortcuts />
-      <AppBar />
+      {/* Suspense vì AppBar dùng useSearchParams (mirror q ở /search) — tránh deopt build. */}
+      <React.Suspense fallback={<header className="appbar" />}>
+        <AppBar />
+      </React.Suspense>
       <div className="appbody" style={{ flex: 1, minHeight: 0 }}>
         <SideNav />
         <main className="maincol scrollbar">{children}</main>

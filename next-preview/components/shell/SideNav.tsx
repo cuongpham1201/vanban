@@ -15,19 +15,16 @@ interface NavDef {
 }
 
 // Route theo mapping bắt buộc: app/(dms)/dashboard|search|documents/[id]|upload|replace.
+// Bỏ count hardcode (số fake). "Bộ sưu tập" (Đang xử lý/Đã ghim/Sắp hết hiệu lực) ẩn vì
+// chưa có nghiệp vụ thật — bật lại khi có count thật.
 const MAIN: NavDef[] = [
   { href: '/dashboard', label: 'Tổng quan', icon: 'dashboard' },
   { href: '/search', label: 'Tìm kiếm', icon: 'search' },
-  { href: '/documents', label: 'Tất cả văn bản', icon: 'docs', count: '4.182' },
+  { href: '/documents', label: 'Tất cả văn bản', icon: 'docs' },
 ];
 const TASKS: NavDef[] = [
   { href: '/upload', label: 'Tải lên văn bản', icon: 'upload' },
   { href: '/replace', label: 'Thay thế văn bản', icon: 'replace' },
-];
-const COLLECTIONS: NavDef[] = [
-  { href: '/search?view=processing', label: 'Đang xử lý của tôi', icon: 'clock', count: '12' },
-  { href: '/search?view=pinned', label: 'Đã ghim', icon: 'star', count: '8' },
-  { href: '/search?view=expiring', label: 'Sắp hết hiệu lực', icon: 'archive', count: '23' },
 ];
 const SYSTEM: NavDef[] = [{ href: '/admin', label: 'Quản trị', icon: 'admin' }];
 
@@ -52,8 +49,6 @@ export default function SideNav(): React.ReactElement {
       {MAIN.map(item)}
       <div className="nav-sec">Tác vụ</div>
       {TASKS.map(item)}
-      <div className="nav-sec">Bộ sưu tập</div>
-      {COLLECTIONS.map(item)}
       <div style={{ flex: 1 }} />
       <div className="nav-sec">Hệ thống</div>
       {SYSTEM.map(item)}
