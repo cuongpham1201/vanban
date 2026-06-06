@@ -1,10 +1,11 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import { DistItem } from './dashboardTypes';
 
-// Phân bố theo Loại VB pháp lý — bar chart thuần CSS (.bar) port từ Dashboard.html.
-export default function DocumentTypeChart({ items, loading }: { items: DistItem[]; loading: boolean }): React.ReactElement {
+// Phân bố theo Loại VB pháp lý — bar chart thuần CSS. Bar click → drill-down search (BUG#11).
+export default function DocumentTypeChart({ items, loading, hrefFor }: { items: DistItem[]; loading: boolean; hrefFor?: (label: string) => string }): React.ReactElement {
   return (
     <div className="widget">
       <div className="whead"><h2>Phân bố theo loại văn bản</h2></div>
@@ -14,13 +15,21 @@ export default function DocumentTypeChart({ items, loading }: { items: DistItem[
         ) : items.length === 0 ? (
           <div className="db-empty">Chưa có dữ liệu loại văn bản.</div>
         ) : (
-          items.map((it) => (
-            <div className="bar" key={it.label}>
-              <div className="lbl" title={it.label}>{it.label}</div>
-              <div className="track"><i style={{ width: `${it.pct}%` }} /></div>
-              <div className="v">{it.count.toLocaleString('vi-VN')}</div>
-            </div>
-          ))
+          items.map((it) => {
+            const href = hrefFor?.(it.label);
+            const inner = (
+              <>
+                <div className="lbl" title={it.label}>{it.label}</div>
+                <div className="track"><i style={{ width: `${it.pct}%` }} /></div>
+                <div className="v">{it.count.toLocaleString('vi-VN')}</div>
+              </>
+            );
+            return href ? (
+              <Link className="bar bar-link" key={it.label} href={href} title={`Lọc: ${it.label}`}>{inner}</Link>
+            ) : (
+              <div className="bar" key={it.label}>{inner}</div>
+            );
+          })
         )}
       </div>
     </div>

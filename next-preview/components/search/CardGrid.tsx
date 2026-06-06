@@ -10,11 +10,13 @@ export default function CardGrid({
   onSelect,
   onOpen,
   onQuick,
+  onPrefetch,
 }: {
   docs: SearchDoc[];
   onSelect: (id: string) => void;
   onOpen?: (id: string) => void;
   onQuick?: (id: string) => void;
+  onPrefetch?: (id: string) => void;
 }): React.ReactElement {
   return (
     <section className="listcol scrollbar">
@@ -28,6 +30,7 @@ export default function CardGrid({
               key={d.id}
               onClick={() => onSelect(d.id)}
               onDoubleClick={() => (onOpen ?? onSelect)(d.id)}
+              onMouseEnter={() => onPrefetch?.(d.id)}
               title="Nhấn đúp để mở chi tiết"
             >
               {onQuick && d.type === 'pdf' && (
@@ -38,7 +41,7 @@ export default function CardGrid({
                   aria-label="Xem nhanh PDF"
                   onClick={(e) => { e.stopPropagation(); onQuick(d.id); }}
                 >
-                  <Icon name="search" size={14} />
+                  <Icon name="eye" size={14} />
                 </button>
               )}
               <div className="thumb">

@@ -5,9 +5,21 @@ import Link from 'next/link';
 import Icon from '@/components/shell/Icon';
 import { SearchDoc } from './searchTypes';
 
-// Khung xem nhanh bên phải — port từ sc-app.js renderPreview.
-// Chưa có PDF viewer thật (mock trang văn bản). "Mở chi tiết" để Phase 3 (route /documents/[id]).
-export default function PreviewPane({ doc, openHref }: { doc: SearchDoc | null; openHref?: string }): React.ReactElement {
+// Khung xem nhanh bên phải. Bỏ thumbnail PDF (BUG#12) → chỉ action + metadata.
+// Xem nhanh PDF mở MODAL (onQuickPdf). Sửa metadata ngay tại đây nếu canWrite (BUG#12A).
+export default function PreviewPane({
+  doc,
+  openHref,
+  canWrite,
+  onEdit,
+  onQuickPdf,
+}: {
+  doc: SearchDoc | null;
+  openHref?: string;
+  canWrite?: boolean;
+  onEdit?: () => void;
+  onQuickPdf?: () => void;
+}): React.ReactElement {
   if (!doc) {
     return (
       <aside className="preview scrollbar">
@@ -57,29 +69,21 @@ export default function PreviewPane({ doc, openHref }: { doc: SearchDoc | null; 
           >
             <Icon name="docs" size={16} /> Mở chi tiết
           </Link>
+          {onQuickPdf && doc.type === 'pdf' && /^\d+$/.test(doc.id) && (
+            <button className="btn btn-gold btn-icon" title="Xem nhanh PDF" aria-label="Xem nhanh PDF" onClick={onQuickPdf}>
+              <Icon name="eye" />
+            </button>
+          )}
           {doc.webUrl && (
-            <a className="btn btn-gold" href={doc.webUrl} target="_blank" rel="noreferrer" title="Mở file trên SharePoint">
+            <a className="btn btn-ghost btn-icon" href={doc.webUrl} target="_blank" rel="noreferrer" title="Mở file trên SharePoint">
               <Icon name="download" />
             </a>
           )}
         </div>
-      </div>
-
-      {/* Fast Preview PDF (BUG#5B/#6) — stream qua proxy same-origin; chỉ với PDF id dạng số. */}
-      <div className="pv-fastpdf">
-        {doc.type === 'pdf' && /^\d+$/.test(doc.id) ? (
-          <iframe
-            className="pv-pdfframe"
-            src={`/api/documents/${encodeURIComponent(doc.id)}/file`}
-            title={`Xem nhanh PDF ${doc.num}`}
-          />
-        ) : (
-          <div className="pv-nopdf">
-            <div className="t-sm" style={{ fontWeight: 600, marginBottom: 4 }}>Không có bản PDF xem nhanh</div>
-            <div className="t-xs mut">
-              {doc.type === 'pdf' ? 'Mở chi tiết để xem.' : 'Đây là file không phải PDF — tải xuống để mở.'}
-            </div>
-          </div>
+        {canWrite && onEdit && (
+          <button className="btn btn-subtle" style={{ marginTop: 10, width: '100%', justifyContent: 'center', gap: 6 }} onClick={onEdit}>
+            <Icon name="edit" size={16} /> Sửa metadata
+          </button>
         )}
       </div>
 

@@ -53,6 +53,13 @@
 .db-root .li .ti { font-size: var(--fs-sm); font-weight: 500; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .db-root .li .sub { font-size: var(--fs-2xs); color: var(--gray-500); flex-shrink: 0; }
 
+/* Drill-down: KPI + bar clickable (#11) */
+.db-root a.kpi.kpi-link { text-decoration: none; color: inherit; cursor: pointer; transition: border-color .12s, box-shadow .12s, transform .08s; }
+.db-root a.kpi.kpi-link:hover { border-color: var(--navy-300); box-shadow: var(--sh-2, 0 4px 14px -4px rgba(20,73,139,.22)); transform: translateY(-1px); }
+.db-root a.bar.bar-link { text-decoration: none; color: inherit; cursor: pointer; border-radius: var(--r-xs); }
+.db-root a.bar.bar-link:hover { background: var(--gray-050); }
+.db-root a.bar.bar-link:hover .track > i { filter: brightness(1.08); }
+
 /* Bar chart */
 .db-root .bar { display: flex; align-items: center; gap: 12px; padding: 9px 0; }
 .db-root .bar .lbl { width: 150px; font-size: var(--fs-sm); color: var(--gray-700); flex-shrink: 0;

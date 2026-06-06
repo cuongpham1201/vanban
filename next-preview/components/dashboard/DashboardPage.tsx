@@ -41,10 +41,16 @@ const ACTIONS: QuickAction[] = [
   { href: '/replace', icon: 'replace', title: 'Thay thế văn bản', desc: 'Liên kết bản mới với bản cũ.' },
 ];
 
-// Dashboard nghiệp vụ (read-only). MỘT lần GET /api/documents → tổng hợp client-side
-// (KPI, phân bố loại/đơn vị/năm, top 10 mới nhất). Không load PDF, không load detail.
+// BUG#11: cache client → back/đổi trang không blank, render cache + refresh nền.
+let _dashCache: IDocument[] | undefined;
+
+// Drill-down: build href /search?<facetKey>=<value> (seed filter ở Search Center).
+const drill = (key: string, value: string): string =>
+  `/search?${key}=${encodeURIComponent(value)}`;
+
+// Dashboard nghiệp vụ (read-only). MỘT lần GET /api/documents → tổng hợp client-side.
 export default function DashboardPage(): React.ReactElement {
-  const [docs, setDocs] = React.useState<IDocument[] | null>(null);
+  const [docs, setDocs] = React.useState<IDocument[] | null>(_dashCache ?? null);
   const [error, setError] = React.useState<string | undefined>();
 
   React.useEffect(() => {
@@ -55,11 +61,12 @@ export default function DashboardPage(): React.ReactElement {
         if (!r.ok || !j.ok) {
           throw new Error(j?.error ?? `Lỗi tải dữ liệu (HTTP ${r.status}).`);
         }
+        _dashCache = j.documents ?? [];
         if (alive) {
-          setDocs(j.documents ?? []);
+          setDocs(_dashCache);
         }
       })
-      .catch((e: Error) => alive && setError(e.message));
+      .catch((e: Error) => alive && !_dashCache && setError(e.message));
     return () => {
       alive = false;
     };
@@ -91,7 +98,19 @@ export default function DashboardPage(): React.ReactElement {
           <div className="db-error">Không tải được dữ liệu: {error}</div>
         )}
 
-        <KpiCards kpis={kpis} loading={loading} />
+        <KpiCards
+          kpis={kpis}
+          loading={loading}
+          hrefFor={(key) =>
+            key === 'total'
+              ? '/search'
+              : key === 'active'
+              ? drill('trangThai', 'Đang lưu hành')
+              : key === 'expired'
+              ? drill('trangThai', 'Hết hiệu lực')
+              : '/search'
+          }
+        />
 
         {/* Truy cập nhanh */}
         <div className="db-quick">
@@ -110,11 +129,11 @@ export default function DashboardPage(): React.ReactElement {
         <div className="grid2">
           <div>
             <RecentDocuments docs={recent} loading={loading} />
-            <YearChart items={byYear} loading={loading} />
+            <YearChart items={byYear} loading={loading} hrefFor={(label) => drill('namBanHanh', label)} />
           </div>
           <div>
-            <DocumentTypeChart items={byType} loading={loading} />
-            <DepartmentChart items={byDept} loading={loading} />
+            <DocumentTypeChart items={byType} loading={loading} hrefFor={(label) => drill('loaiVanBanPhapLy', label)} />
+            <DepartmentChart items={byDept} loading={loading} hrefFor={(label) => drill('donViPhatHanh', label)} />
           </div>
         </div>
       </div>

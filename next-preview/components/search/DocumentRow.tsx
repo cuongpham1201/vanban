@@ -12,18 +12,21 @@ export default function DocumentRow({
   onSelect,
   onOpen,
   onQuick,
+  onPrefetch,
 }: {
   doc: SearchDoc;
   selected: boolean;
   onSelect: (id: string) => void;
   onOpen?: (id: string) => void;
   onQuick?: (id: string) => void;
+  onPrefetch?: (id: string) => void;
 }): React.ReactElement {
   return (
     <div
       className={`docrow ${selected ? 'sel' : ''}`}
       onClick={() => onSelect(doc.id)}
       onDoubleClick={() => onOpen?.(doc.id)}
+      onMouseEnter={() => onPrefetch?.(doc.id)}
       title="Nhấn đúp để mở chi tiết"
     >
       <div className="top">
@@ -50,7 +53,7 @@ export default function DocumentRow({
                 onQuick(doc.id);
               }}
             >
-              <Icon name="search" size={15} />
+              <Icon name="eye" size={15} />
             </button>
           )}
           <span className={`badge ${doc.statusClass}`}>{doc.statusLabel}</span>

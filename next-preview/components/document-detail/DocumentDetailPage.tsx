@@ -15,15 +15,19 @@ interface DetailResponse {
   error?: string;
 }
 
-// Trang chi tiết — gọi GET /api/documents/[id] (read-only, server tìm trong cache dùng chung).
-// Không fetch-all rồi find client-side nữa. Phase 4.5 data wiring.
+// BUG#13: cache detail client (TTL) → back mở lại tức thì, không "Đang tải" trên màn trắng.
+const _detailCache = new Map<string, { doc: IDocument; ts: number }>();
+const DETAIL_TTL = 5 * 60 * 1000;
+
+// Trang chi tiết — gọi GET /api/documents/[id] (read-only). Render header+metadata trước,
+// PDF load async (iframe). Có cache → render ngay + refresh nền (BUG#13).
 export default function DocumentDetailPage({ id }: { id: string }): React.ReactElement {
   const searchParams = useSearchParams();
-  // returnUrl = URL kết quả tìm kiếm (đã encode) để "Quay lại kết quả"; chỉ chấp nhận path nội bộ.
   const rawReturn = searchParams.get('returnUrl');
   const returnUrl = rawReturn && rawReturn.startsWith('/') ? rawReturn : undefined;
-  const [doc, setDoc] = React.useState<IDocument | null>(null);
-  const [status, setStatus] = React.useState<'loading' | 'ok' | 'notfound' | 'error'>('loading');
+  const cached = _detailCache.get(id);
+  const [doc, setDoc] = React.useState<IDocument | null>(cached?.doc ?? null);
+  const [status, setStatus] = React.useState<'loading' | 'ok' | 'notfound' | 'error'>(cached ? 'ok' : 'loading');
   const [error, setError] = React.useState<string | undefined>();
   const [canWrite, setCanWrite] = React.useState(false);
   const [editing, setEditing] = React.useState(false);
@@ -40,18 +44,28 @@ export default function DocumentDetailPage({ id }: { id: string }): React.ReactE
       if (!r.ok || !j.ok || !j.document) {
         throw new Error(j?.error ?? `Lỗi tải dữ liệu (HTTP ${r.status}).`);
       }
+      _detailCache.set(id, { doc: j.document, ts: Date.now() });
       setDoc(j.document);
       setStatus('ok');
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-      setStatus('error');
+      // Có cache cũ → giữ hiển thị, không bung lỗi che màn.
+      if (!_detailCache.has(id)) {
+        setError(e instanceof Error ? e.message : String(e));
+        setStatus('error');
+      }
     }
   }, [id]);
 
   React.useEffect(() => {
-    setStatus('loading');
-    void load();
-  }, [load]);
+    const c = _detailCache.get(id);
+    if (c && Date.now() - c.ts < DETAIL_TTL) {
+      setDoc(c.doc);
+      setStatus('ok'); // render ngay từ cache
+    } else if (!c) {
+      setStatus('loading');
+    }
+    void load(); // luôn refresh nền
+  }, [id, load]);
 
   // Quyền sửa metadata (flag + allowlist). Nút "Sửa metadata" chỉ hiện khi canWrite.
   React.useEffect(() => {
@@ -73,9 +87,29 @@ export default function DocumentDetailPage({ id }: { id: string }): React.ReactE
     );
   }
   if (status === 'loading') {
+    // BUG#13: skeleton thay vì "Đang tải…" trên màn trắng.
     return (
       <div className="dd-root">
-        <div className="dd-empty" style={{ padding: 24 }}>Đang tải văn bản…</div>
+        <div className="dochead">
+          <div className="dd-skel" style={{ width: 140, height: 14, marginBottom: 10 }} />
+          <div className="titlerow">
+            <div className="dd-skel" style={{ width: 40, height: 46, borderRadius: 8 }} />
+            <div style={{ flex: 1 }}>
+              <div className="dd-skel" style={{ width: 180, height: 12, marginBottom: 8 }} />
+              <div className="dd-skel" style={{ width: '60%', height: 20 }} />
+            </div>
+          </div>
+        </div>
+        <div className="split">
+          <section className="viewer" style={{ display: 'grid', placeItems: 'center' }}>
+            <div className="dd-skel" style={{ width: '70%', height: '70%', maxWidth: 520, borderRadius: 8 }} />
+          </section>
+          <div className="dd-meta" style={{ padding: 'var(--sp-5)' }}>
+            {Array.from({ length: 7 }).map((_, i) => (
+              <div key={i} className="dd-skel" style={{ height: 14, marginBottom: 14, width: `${90 - i * 6}%` }} />
+            ))}
+          </div>
+        </div>
       </div>
     );
   }

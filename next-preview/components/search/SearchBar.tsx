@@ -8,9 +8,11 @@ import Icon from '@/components/shell/Icon';
 export default function SearchBar({
   value,
   onChange,
+  onClear,
 }: {
   value: string;
   onChange: (v: string) => void;
+  onClear?: () => void;
 }): React.ReactElement {
   return (
     <div className="bigsearch">
@@ -22,6 +24,17 @@ export default function SearchBar({
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
+      {value && (
+        <button
+          type="button"
+          className="bigsearch-clear"
+          title="Xoá từ khoá"
+          aria-label="Xoá từ khoá"
+          onClick={() => (onClear ? onClear() : onChange(''))}
+        >
+          <Icon name="x" size={16} />
+        </button>
+      )}
       <span
         className="kbd"
         style={{

@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import Icon, { IconName } from '@/components/shell/Icon';
 import { Kpis, EXPIRING_WINDOW_DAYS } from './dashboardTypes';
 
@@ -21,17 +22,33 @@ const DEFS: KpiDef[] = [
   { key: 'expiringSoon', label: 'Sắp hết hiệu lực', icon: 'clock', bg: 'var(--gold-100)', fg: 'var(--gold-700)', note: `≤ ${EXPIRING_WINDOW_DAYS} ngày` },
 ];
 
-export default function KpiCards({ kpis, loading }: { kpis: Kpis | null; loading: boolean }): React.ReactElement {
+export default function KpiCards({
+  kpis,
+  loading,
+  hrefFor,
+}: {
+  kpis: Kpis | null;
+  loading: boolean;
+  hrefFor?: (key: keyof Kpis) => string | undefined;
+}): React.ReactElement {
   return (
     <div className="db-kpis">
-      {DEFS.map((d) => (
-        <div className="kpi" key={d.key}>
-          {d.note && <span className="delta" style={{ color: d.fg }}>{d.note}</span>}
-          <div className="ic" style={{ background: d.bg, color: d.fg }}><Icon name={d.icon} /></div>
-          <div className="num">{loading || !kpis ? '…' : kpis[d.key].toLocaleString('vi-VN')}</div>
-          <div className="lbl">{d.label}</div>
-        </div>
-      ))}
+      {DEFS.map((d) => {
+        const href = hrefFor?.(d.key);
+        const inner = (
+          <>
+            {d.note && <span className="delta" style={{ color: d.fg }}>{d.note}</span>}
+            <div className="ic" style={{ background: d.bg, color: d.fg }}><Icon name={d.icon} /></div>
+            <div className="num">{loading || !kpis ? '…' : kpis[d.key].toLocaleString('vi-VN')}</div>
+            <div className="lbl">{d.label}</div>
+          </>
+        );
+        return href ? (
+          <Link className="kpi kpi-link" key={d.key} href={href} title={`Lọc: ${d.label}`}>{inner}</Link>
+        ) : (
+          <div className="kpi" key={d.key}>{inner}</div>
+        );
+      })}
     </div>
   );
 }

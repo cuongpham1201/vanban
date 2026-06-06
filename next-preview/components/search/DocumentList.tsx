@@ -14,6 +14,7 @@ export default function DocumentList({
   onSelect,
   onOpen,
   onQuick,
+  onPrefetch,
   sort,
   onSort,
 }: {
@@ -23,6 +24,7 @@ export default function DocumentList({
   onSelect: (id: string) => void;
   onOpen?: (id: string) => void;
   onQuick?: (id: string) => void;
+  onPrefetch?: (id: string) => void;
   sort: SortKey;
   onSort: (s: SortKey) => void;
 }): React.ReactElement {
@@ -51,7 +53,7 @@ export default function DocumentList({
       ) : (
         <div className="doclist">
           {docs.map((d) => (
-            <DocumentRow key={d.id} doc={d} selected={d.id === selectedId} onSelect={onSelect} onOpen={onOpen} onQuick={onQuick} />
+            <DocumentRow key={d.id} doc={d} selected={d.id === selectedId} onSelect={onSelect} onOpen={onOpen} onQuick={onQuick} onPrefetch={onPrefetch} />
           ))}
         </div>
       )}
