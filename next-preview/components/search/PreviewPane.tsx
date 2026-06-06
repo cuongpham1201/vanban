@@ -52,10 +52,10 @@ export default function PreviewPane({ doc, openHref }: { doc: SearchDoc | null; 
         <div className="row gap-2" style={{ marginTop: 14 }}>
           <Link
             className="btn btn-primary"
-            style={{ flex: 1, justifyContent: 'center' }}
+            style={{ flex: 1, justifyContent: 'center', gap: 6, fontWeight: 600 }}
             href={openHref ?? `/documents/${encodeURIComponent(doc.id)}`}
           >
-            Mở chi tiết
+            <Icon name="docs" size={16} /> Mở chi tiết
           </Link>
           {doc.webUrl && (
             <a className="btn btn-gold" href={doc.webUrl} target="_blank" rel="noreferrer" title="Mở file trên SharePoint">

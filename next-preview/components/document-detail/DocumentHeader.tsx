@@ -25,12 +25,11 @@ export default function DocumentHeader({
     <div className="dochead">
       <button
         type="button"
-        className="btn btn-ghost"
+        className="dd-back"
         onClick={goBack}
-        style={{ marginBottom: 8, paddingLeft: 0, fontSize: 'var(--fs-sm)' }}
         title={returnUrl ? 'Quay lại kết quả tìm kiếm (giữ bộ lọc)' : 'Về Trung tâm tìm kiếm'}
       >
-        ← Quay lại kết quả
+        <span aria-hidden>←</span> Quay lại kết quả
       </button>
       <div className="crumb">
         <Link href={returnUrl ?? '/search'}>Tìm kiếm</Link> / <span>{doc.num}</span>

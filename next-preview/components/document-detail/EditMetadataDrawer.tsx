@@ -13,28 +13,48 @@ interface EditField {
   ck?: string; // key trong metadata-choices (select)
   full?: boolean;
   staticChoices?: string[];
+  req?: boolean; // trường quan trọng (đánh dấu *)
 }
-const FIELDS: EditField[] = [
-  { col: 'SoVanBan', label: 'Số văn bản', type: 'text' },
-  { col: 'TrichYeu', label: 'Trích yếu', type: 'textarea', full: true },
-  { col: 'NhomTaiLieu', label: 'Nhóm tài liệu', type: 'select', ck: 'nhomTaiLieu' },
-  { col: 'LoaiVanBanPhapLy', label: 'Loại VB pháp lý', type: 'select', ck: 'loaiVanBanPhapLy' },
-  { col: 'LoaiTaiLieu', label: 'Loại tài liệu', type: 'select', ck: 'loaiTaiLieu' },
-  { col: 'ChuDeNghiepVu', label: 'Chủ đề nghiệp vụ', type: 'text' },
-  { col: 'NamBanHanh', label: 'Năm ban hành', type: 'number' },
-  { col: 'NgayBanHanh', label: 'Ngày ban hành', type: 'date' },
-  { col: 'NgayHetHieuLuc', label: 'Ngày hết hiệu lực', type: 'date' },
-  { col: 'TrangThai', label: 'Trạng thái', type: 'select', ck: 'trangThai' },
-  { col: 'MucDoBaoMat', label: 'Mức độ bảo mật', type: 'select', ck: 'mucDoBaoMat' },
-  { col: 'DonViPhatHanh', label: 'Đơn vị phát hành', type: 'select', ck: 'donViPhatHanh' },
-  { col: 'DonViSoHuu', label: 'Đơn vị sở hữu', type: 'select', ck: 'donViSoHuu' },
-  { col: 'NguonMetadata', label: 'Nguồn metadata', type: 'select', ck: 'nguonMetadata' },
-  { col: 'MetadataConfidence', label: 'Độ tin cậy', type: 'select', ck: 'metadataConfidence' },
-  { col: 'HasEditableSource', label: 'Có bản mềm', type: 'select', staticChoices: ['true', 'false'] },
-  { col: 'EditableSourceUrl', label: 'URL bản mềm', type: 'text', full: true },
-  { col: 'Tags', label: 'Tags', type: 'text', full: true },
-  { col: 'VanBanLienQuan', label: 'Văn bản liên quan', type: 'text', full: true },
-  { col: 'VanBanThayThe', label: 'Văn bản thay thế', type: 'text' },
+interface FieldGroup {
+  title: string;
+  fields: EditField[];
+}
+const GROUPS: FieldGroup[] = [
+  {
+    title: 'Thông tin chính',
+    fields: [
+      { col: 'SoVanBan', label: 'Số văn bản', type: 'text', req: true },
+      { col: 'TrichYeu', label: 'Trích yếu', type: 'textarea', full: true, req: true },
+      { col: 'NamBanHanh', label: 'Năm ban hành', type: 'number' },
+      { col: 'NgayBanHanh', label: 'Ngày ban hành', type: 'date' },
+      { col: 'NgayHetHieuLuc', label: 'Ngày hết hiệu lực', type: 'date' },
+      { col: 'TrangThai', label: 'Trạng thái', type: 'select', ck: 'trangThai' },
+      { col: 'MucDoBaoMat', label: 'Mức độ bảo mật', type: 'select', ck: 'mucDoBaoMat' },
+    ],
+  },
+  {
+    title: 'Phân loại Metadata V2',
+    fields: [
+      { col: 'NhomTaiLieu', label: 'Nhóm tài liệu', type: 'select', ck: 'nhomTaiLieu', req: true },
+      { col: 'LoaiVanBanPhapLy', label: 'Loại VB pháp lý', type: 'select', ck: 'loaiVanBanPhapLy' },
+      { col: 'LoaiTaiLieu', label: 'Loại tài liệu', type: 'select', ck: 'loaiTaiLieu' },
+      { col: 'ChuDeNghiepVu', label: 'Chủ đề nghiệp vụ', type: 'text' },
+      { col: 'DonViPhatHanh', label: 'Đơn vị phát hành', type: 'select', ck: 'donViPhatHanh' },
+      { col: 'DonViSoHuu', label: 'Đơn vị sở hữu', type: 'select', ck: 'donViSoHuu' },
+      { col: 'NguonMetadata', label: 'Nguồn metadata', type: 'select', ck: 'nguonMetadata' },
+      { col: 'MetadataConfidence', label: 'Độ tin cậy', type: 'select', ck: 'metadataConfidence' },
+    ],
+  },
+  {
+    title: 'Liên kết / Nguồn',
+    fields: [
+      { col: 'HasEditableSource', label: 'Có bản mềm', type: 'select', staticChoices: ['true', 'false'] },
+      { col: 'EditableSourceUrl', label: 'URL bản mềm', type: 'text', full: true },
+      { col: 'Tags', label: 'Tags', type: 'text', full: true },
+      { col: 'VanBanLienQuan', label: 'Văn bản liên quan', type: 'text', full: true },
+      { col: 'VanBanThayThe', label: 'Văn bản thay thế', type: 'text' },
+    ],
+  },
 ];
 
 // Prefill từ IDocument (camelCase) → internal column name.
@@ -139,29 +159,42 @@ export default function EditMetadataDrawer({
           <button className="btn btn-ghost btn-icon" onClick={onClose} title="Đóng" aria-label="Đóng"><Icon name="plus" size={18} /></button>
         </div>
 
-        <div style={{ padding: '16px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          {FIELDS.map((f) => (
-            <div key={f.col} style={{ gridColumn: f.full ? '1 / -1' : 'auto' }}>
-              <label className="field-label" style={{ display: 'block', marginBottom: 4 }}>{f.label}</label>
-              {f.type === 'select' ? (
-                <select className="select" value={form[f.col] ?? ''} onChange={(e) => set(f.col, e.target.value)} style={{ width: '100%' }}>
-                  <option value="">— Chọn —</option>
-                  {/* giữ giá trị hiện tại dù không nằm trong choices (để không mất dữ liệu) */}
-                  {form[f.col] && !optionsFor(f).includes(form[f.col]) && <option value={form[f.col]}>{form[f.col]} (hiện tại)</option>}
-                  {optionsFor(f).map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-              ) : f.type === 'textarea' ? (
-                <textarea className="textarea" rows={2} value={form[f.col] ?? ''} onChange={(e) => set(f.col, e.target.value)} style={{ width: '100%' }} />
-              ) : (
-                <input
-                  className="input"
-                  type={f.type === 'date' ? 'date' : f.type === 'number' ? 'number' : 'text'}
-                  value={form[f.col] ?? ''}
-                  onChange={(e) => set(f.col, e.target.value)}
-                  style={{ width: '100%' }}
-                />
-              )}
-            </div>
+        <div style={{ padding: '12px 20px 8px' }}>
+          {GROUPS.map((g) => (
+            <section key={g.title} style={{ marginBottom: 18 }}>
+              <div
+                className="t-eyebrow"
+                style={{ fontSize: 'var(--fs-2xs)', fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--gray-500)', margin: '0 0 10px', paddingBottom: 6, borderBottom: '1px solid var(--gray-150)' }}
+              >
+                {g.title}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 12 }}>
+                {g.fields.map((f) => (
+                  <div key={f.col} style={{ gridColumn: f.full ? '1 / -1' : 'auto' }}>
+                    <label className="field-label" style={{ display: 'block', marginBottom: 4 }}>
+                      {f.label}{f.req ? <span style={{ color: 'var(--danger-600, #c0362c)' }}> *</span> : null}
+                    </label>
+                    {f.type === 'select' ? (
+                      <select className="select" value={form[f.col] ?? ''} onChange={(e) => set(f.col, e.target.value)} style={{ width: '100%' }}>
+                        <option value="">— Chọn —</option>
+                        {form[f.col] && !optionsFor(f).includes(form[f.col]) && <option value={form[f.col]}>{form[f.col]} (hiện tại)</option>}
+                        {optionsFor(f).map((c) => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    ) : f.type === 'textarea' ? (
+                      <textarea className="textarea" rows={2} value={form[f.col] ?? ''} onChange={(e) => set(f.col, e.target.value)} style={{ width: '100%' }} />
+                    ) : (
+                      <input
+                        className="input"
+                        type={f.type === 'date' ? 'date' : f.type === 'number' ? 'number' : 'text'}
+                        value={form[f.col] ?? ''}
+                        onChange={(e) => set(f.col, e.target.value)}
+                        style={{ width: '100%' }}
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
           ))}
         </div>
 
