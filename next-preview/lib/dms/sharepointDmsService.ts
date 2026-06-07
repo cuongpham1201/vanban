@@ -49,6 +49,10 @@ export interface FolderResolveResult {
 // Giới hạn simple upload (PUT /content). File lớn hơn → lỗi rõ; resumable upload = follow-up.
 export const MAX_UPLOAD_BYTES = 60 * 1024 * 1024; // 60MB
 
+// BUG#18: cột Hyperlink — Microsoft Graph KHÔNG ghi được qua PATCH .../items/{id}/fields (→ 400).
+// LUÔN bỏ qua trong coerceFields để không bao giờ PATCH (cả upload lẫn edit metadata).
+const UNWRITABLE_HYPERLINK_COLUMNS = new Set(['EditableSourceUrl', 'PrimaryPdfUrl']);
+
 export class UploadTooLargeError extends Error {
   status = 413;
   constructor(bytes: number) {
@@ -329,6 +333,11 @@ export class SharePointDmsService {
     const skipped: string[] = [];
     for (const [name, raw] of Object.entries(fields)) {
       const val = (raw ?? '').trim();
+      // BUG#18: cột Hyperlink không ghi được qua Graph → luôn skip (mọi path PATCH).
+      if (UNWRITABLE_HYPERLINK_COLUMNS.has(name)) {
+        if (val) skipped.push(name);
+        continue;
+      }
       const col = cols.get(name);
       if (!col || col.readOnly) {
         if (val) skipped.push(name);
@@ -407,11 +416,14 @@ export class SharePointDmsService {
     }
 
     // 3) PATCH metadata (retry 2) → rollback nếu vẫn fail.
-    const rawFields: Record<string, string> = {
-      ...req.metadata,
-      EditableSourceUrl: editableWebUrl,
-      HasEditableSource: editableWebUrl ? 'true' : 'false',
-    };
+    // BUG#18: KHÔNG ghi cột Hyperlink (EditableSourceUrl/PrimaryPdfUrl). Microsoft Graph KHÔNG
+    // hỗ trợ PATCH .../items/{id}/fields cho cột Hyperlink → 400 → rollback toàn bộ upload
+    // (đã chứng minh trên production). Chỉ set cờ HasEditableSource (boolean). File DOCX vẫn nằm
+    // cùng folder + cùng base filename nên truy ra được mà không cần URL link.
+    const rawFields: Record<string, string> = { ...req.metadata };
+    delete rawFields.EditableSourceUrl;
+    delete rawFields.PrimaryPdfUrl;
+    rawFields.HasEditableSource = editableWebUrl ? 'true' : 'false';
     // Coerce theo schema cột (number/boolean/dateTime/choice/person) → tránh Graph 400.
     const { coerced, skipped } = await this.coerceFields(rawFields);
     if (skipped.length) {

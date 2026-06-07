@@ -4,29 +4,36 @@ import * as React from 'react';
 import Icon from '@/components/shell/Icon';
 import { SelectedFile } from './uploadTypes';
 
-const ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx';
+const ACCEPT = '.pdf';
+const ACCEPT_EDITABLE = '.doc,.docx,.xls,.xlsx,.pptx';
 
-// Bước 1 — chọn file (KHÔNG upload thật). Hiển thị tên + size; UI preview only.
+// Bước 1 — chọn PDF chính (bắt buộc) + bản mềm DOCX/XLSX (tùy chọn) — BUG#18 multi-file MVP.
 export default function FileDropzone({
   file,
   onFile,
-  attachSource,
-  onAttachToggle,
+  editableFile,
+  onEditableFile,
 }: {
   file: SelectedFile | null;
   onFile: (f: SelectedFile | null) => void;
-  attachSource: boolean;
-  onAttachToggle: () => void;
+  editableFile: SelectedFile | null;
+  onEditableFile: (f: SelectedFile | null) => void;
 }): React.ReactElement {
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const editRef = React.useRef<HTMLInputElement>(null);
   const [drag, setDrag] = React.useState(false);
 
+  const toSel = (f: File): SelectedFile => ({
+    name: f.name,
+    sizeKB: Math.max(1, Math.round(f.size / 1024)),
+    ext: (f.name.split('.').pop() ?? '').toLowerCase(),
+    raw: f,
+  });
   const pick = (f: File | undefined): void => {
-    if (!f) {
-      return;
-    }
-    const ext = (f.name.split('.').pop() ?? '').toLowerCase();
-    onFile({ name: f.name, sizeKB: Math.max(1, Math.round(f.size / 1024)), ext, raw: f });
+    if (f) onFile(toSel(f));
+  };
+  const pickEditable = (f: File | undefined): void => {
+    if (f) onEditableFile(toSel(f));
   };
 
   return (
@@ -55,32 +62,42 @@ export default function FileDropzone({
         <div className="big">
           <Icon name="upload" />
         </div>
-        <div className="t-h3" style={{ marginBottom: 4 }}>Kéo thả file vào đây hoặc bấm để chọn</div>
-        <div className="t-sm mut">Hỗ trợ PDF, DOCX, XLSX · Tối đa 50 MB / file</div>
+        <div className="t-h3" style={{ marginBottom: 4 }}>Kéo thả PDF chính vào đây hoặc bấm để chọn</div>
+        <div className="t-sm mut">PDF (bắt buộc) · Tối đa 50 MB</div>
       </div>
 
       {file && (
         <div className="filecard">
-          <div className={`ficon ${file.ext === 'pdf' ? '' : 'doc'}`}>{(file.ext || '?').toUpperCase().slice(0, 4)}</div>
+          <div className="ficon">PDF</div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="t-sm" style={{ fontWeight: 600 }}>{file.name}</div>
-            <div className="t-2xs mut">{file.sizeKB.toLocaleString('vi-VN')} KB · đã chọn (chưa tải lên — UI preview)</div>
+            <div className="t-sm" style={{ fontWeight: 600 }}>{file.name} <span className="badge badge-navy" style={{ padding: '1px 6px' }}>Primary PDF</span></div>
+            <div className="t-2xs mut">{file.sizeKB.toLocaleString('vi-VN')} KB · PDF chính</div>
           </div>
           <button className="btn btn-ghost btn-sm" onClick={() => onFile(null)}>Bỏ chọn</button>
         </div>
       )}
 
-      <label
-        style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 16, fontSize: 'var(--fs-sm)', cursor: 'pointer' }}
-      >
-        <input
-          type="checkbox"
-          checked={attachSource}
-          onChange={onAttachToggle}
-          style={{ width: 16, height: 16, accentColor: 'var(--navy-600)' }}
-        />
-        <span>Đính kèm file nguồn chỉnh sửa (.docx) — giúp chuẩn hoá và tái sử dụng sau này</span>
-      </label>
+      {/* Bản mềm (tùy chọn) — DOCX/XLSX/PPTX → Editable Source */}
+      <input ref={editRef} type="file" accept={ACCEPT_EDITABLE} style={{ display: 'none' }} onChange={(e) => pickEditable(e.target.files?.[0])} />
+      {editableFile ? (
+        <div className="filecard" style={{ marginTop: 10 }}>
+          <div className="ficon doc">{(editableFile.ext || 'DOC').toUpperCase().slice(0, 4)}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="t-sm" style={{ fontWeight: 600 }}>{editableFile.name} <span className="badge badge-ok" style={{ padding: '1px 6px' }}>Editable Source</span></div>
+            <div className="t-2xs mut">{editableFile.sizeKB.toLocaleString('vi-VN')} KB · bản mềm</div>
+          </div>
+          <button className="btn btn-ghost btn-sm" onClick={() => onEditableFile(null)}>Bỏ chọn</button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="btn btn-ghost"
+          style={{ marginTop: 12, borderStyle: 'dashed' }}
+          onClick={() => editRef.current?.click()}
+        >
+          <Icon name="plus" size={16} /> Thêm bản mềm (.docx/.xlsx — tùy chọn)
+        </button>
+      )}
     </>
   );
 }

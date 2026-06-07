@@ -4,9 +4,7 @@ import * as React from 'react';
 import DocumentRow from './DocumentRow';
 import { SearchDoc } from './searchTypes';
 
-export type SortKey = 'relevance' | 'newest' | 'num';
-
-// Cột danh sách kết quả — port từ SearchCenter.html .listcol/.listhead/.doclist.
+// Cột danh sách kết quả. Sort đã chuyển lên SearchSubBar (BUG#19).
 export default function DocumentList({
   docs,
   total,
@@ -15,8 +13,6 @@ export default function DocumentList({
   onOpen,
   onQuick,
   onPrefetch,
-  sort,
-  onSort,
 }: {
   docs: SearchDoc[];
   total: number;
@@ -25,27 +21,13 @@ export default function DocumentList({
   onOpen?: (id: string) => void;
   onQuick?: (id: string) => void;
   onPrefetch?: (id: string) => void;
-  sort: SortKey;
-  onSort: (s: SortKey) => void;
 }): React.ReactElement {
-  const sortItem = (key: SortKey, label: string): React.ReactElement => (
-    <span
-      style={{ cursor: 'pointer', color: sort === key ? 'var(--navy-600)' : undefined, fontWeight: sort === key ? 600 : undefined }}
-      onClick={() => onSort(key)}
-    >
-      {label}
-    </span>
-  );
-
   return (
     <section className="listcol scrollbar">
       <div className="listhead">
         <div className="row gap-3">
           <span className="t-sm" style={{ fontWeight: 600 }}>Kết quả</span>
           <span className="t-xs mut">{total.toLocaleString('vi-VN')} văn bản</span>
-        </div>
-        <div className="row gap-2 t-xs mut">
-          {sortItem('newest', 'Mới nhất')}·{sortItem('num', 'Số VB')}·{sortItem('relevance', 'Liên quan')}
         </div>
       </div>
       {docs.length === 0 ? (

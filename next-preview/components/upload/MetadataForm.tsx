@@ -20,16 +20,7 @@ export default function MetadataForm({
   };
   return (
     <>
-      <div className="ai-note">
-        <div className="ic">AI</div>
-        <div>
-          <div className="t-sm" style={{ fontWeight: 600, marginBottom: 2 }}>Nhập / kiểm tra metadata</div>
-          <div className="t-xs mut">
-            Bản preview nhập tay. Tự động trích xuất (OCR/AI) + độ tin cậy theo từng trường sẽ có ở Phase 5.
-          </div>
-        </div>
-      </div>
-
+      {/* BUG#18: ẩn box AI/OCR (chưa có chức năng thật). */}
       <div className="fgrid">
         {FIELDS.map((f) => (
           <div className={f.full ? 'full' : ''} key={f.key}>

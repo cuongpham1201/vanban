@@ -6,6 +6,7 @@ import { getAppOnlyGraphToken } from '@/lib/graph/appToken';
 import { SharePointDmsService } from '@/lib/dms/sharepointDmsService';
 import { GraphError } from '@/lib/graph/client';
 import { LibraryResolveError } from '@/lib/sharepoint/resolve';
+import { invalidateDocumentsCache } from '@/lib/dms/documentsCache';
 
 export const dynamic = 'force-dynamic';
 
@@ -59,6 +60,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     const token = await getAppOnlyGraphToken();
     const svc = new SharePointDmsService(token);
     const { fields: updated, skipped, updatedAt } = await svc.updateMetadata(id, fields);
+    // BUG#23: clear server cache (dùng chung bởi /api/documents, /api/documents/[id], /api/dashboard)
+    // → Search/Detail/Dashboard re-fetch thấy metadata mới ngay, không stale tới 5 phút.
+    invalidateDocumentsCache('edit');
     return NextResponse.json({ ok: true, fields: updated, skipped, updatedAt });
   } catch (e) {
     if (e instanceof DmsWriteError) {

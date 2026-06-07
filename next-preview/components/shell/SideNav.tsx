@@ -28,8 +28,30 @@ const TASKS: NavDef[] = [
 ];
 const SYSTEM: NavDef[] = [{ href: '/admin', label: 'Quản trị', icon: 'admin' }];
 
-export default function SideNav(): React.ReactElement {
+export default function SideNav({
+  open,
+  pinned,
+  onTogglePin,
+  onNavigate,
+}: {
+  open?: boolean;
+  pinned?: boolean;
+  onTogglePin?: () => void;
+  onNavigate?: () => void;
+} = {}): React.ReactElement {
   const pathname = usePathname() || '/dashboard';
+  // BUG#16: menu "Quản trị" chỉ hiện khi canWrite (lấy từ write-status, không hardcode email).
+  const [canWrite, setCanWrite] = React.useState(false);
+  React.useEffect(() => {
+    let alive = true;
+    fetch('/api/dms/write-status', { credentials: 'same-origin' })
+      .then((r) => r.json())
+      .then((j) => alive && setCanWrite(!!j?.canWrite))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const isActive = (href: string): boolean => {
     const base = href.split('?')[0];
@@ -37,7 +59,12 @@ export default function SideNav(): React.ReactElement {
   };
 
   const item = (n: NavDef): React.ReactElement => (
-    <Link key={n.href + n.label} href={n.href} className={`nav-item ${isActive(n.href) ? 'active' : ''}`}>
+    <Link
+      key={n.href + n.label}
+      href={n.href}
+      className={`nav-item ${isActive(n.href) ? 'active' : ''}`}
+      onClick={() => onNavigate?.()}
+    >
       <Icon name={n.icon} />
       <span>{n.label}</span>
       {n.count ? <span className="count">{n.count}</span> : null}
@@ -45,13 +72,22 @@ export default function SideNav(): React.ReactElement {
   );
 
   return (
-    <aside className="sidenav scrollbar">
+    <aside className={`sidenav scrollbar${open ? ' open' : ''}`}>
       {MAIN.map(item)}
       <div className="nav-sec">Tác vụ</div>
       {TASKS.map(item)}
       <div style={{ flex: 1 }} />
-      <div className="nav-sec">Hệ thống</div>
-      {SYSTEM.map(item)}
+      {canWrite && (
+        <>
+          <div className="nav-sec">Hệ thống</div>
+          {SYSTEM.map(item)}
+        </>
+      )}
+      {onTogglePin && (
+        <button type="button" className="nav-pin" onClick={onTogglePin} title={pinned ? 'Bỏ ghim menu' : 'Ghim menu'}>
+          <Icon name="pin" size={16} /> {pinned ? 'Bỏ ghim menu' : 'Ghim menu'}
+        </button>
+      )}
     </aside>
   );
 }

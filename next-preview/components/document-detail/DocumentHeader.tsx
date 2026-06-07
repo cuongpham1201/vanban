@@ -21,62 +21,38 @@ export default function DocumentHeader({
   const router = useRouter();
   // "Quay lại kết quả": có returnUrl → về đúng URL tìm kiếm (giữ filter); không → /search.
   const goBack = (): void => router.push(returnUrl ?? '/search');
+  // BUG#17: header SLIM 1 hàng → PDF viewer cao hơn. Badge phụ + thông tin đầy đủ ở panel phải.
   return (
-    <div className="dochead">
+    <div className="dochead dochead-slim">
       <button
         type="button"
         className="dd-back"
         onClick={goBack}
         title={returnUrl ? 'Quay lại kết quả tìm kiếm (giữ bộ lọc)' : 'Về Trung tâm tìm kiếm'}
       >
-        <span aria-hidden>←</span> Quay lại kết quả
+        <span aria-hidden>←</span> Quay lại
       </button>
-      <div className="crumb">
-        <Link href={returnUrl ?? '/search'}>Tìm kiếm</Link> / <span>{doc.num}</span>
-      </div>
-      <div className="titlerow">
-        <div className={`ficon ${doc.type === 'doc' ? 'doc' : ''}`}>{doc.type === 'doc' ? 'DOC' : 'PDF'}</div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="row gap-2 wrap" style={{ marginBottom: 3 }}>
-            <span className="num">{doc.num}</span>
-            <span className={`badge ${doc.statusClass}`}>{doc.statusLabel}</span>
-            <span className={`badge ${doc.baomatClass}`}>
-              <span className="dot" />
-              {doc.baomat}
-            </span>
-            {doc.softcopy ? (
-              <span className="badge badge-ok"><span className="dot" />Có bản mềm</span>
-            ) : (
-              <span className="badge badge-danger">Thiếu bản mềm</span>
-            )}
-          </div>
-          <h1>{doc.title}</h1>
-        </div>
-        <div className="actions">
-          {canWrite && (
-            <button className="btn btn-subtle" title="Sửa metadata văn bản" onClick={onEdit}>
-              <Icon name="admin" /> Sửa metadata
-            </button>
-          )}
-          <button className="btn btn-ghost btn-icon" title="Ghim"><Icon name="pin" /></button>
-          <button className="btn btn-ghost btn-icon" title="Chia sẻ"><Icon name="share" /></button>
-          <Link
-            className="btn btn-ghost"
-            href={`/replace?old=${encodeURIComponent(doc.id)}`}
-            title="Thay thế văn bản này bằng phiên bản mới"
-          >
-            <Icon name="replace" /> Thay thế
-          </Link>
-          {doc.webUrl ? (
-            <a className="btn btn-primary" href={doc.webUrl} target="_blank" rel="noreferrer">
-              <Icon name="download" /> Tải xuống
-            </a>
-          ) : (
-            <button className="btn btn-primary" disabled style={{ opacity: 0.55 }}>
-              <Icon name="download" /> Tải xuống
-            </button>
-          )}
-        </div>
+      <span className="num" title={doc.num}>{doc.num}</span>
+      <span className="dh-title" title={doc.title}>{doc.title}</span>
+      <span className={`badge ${doc.statusClass}`} style={{ flexShrink: 0 }}>{doc.statusLabel}</span>
+      <div className="actions">
+        {canWrite && (
+          <button className="btn btn-subtle" title="Sửa metadata văn bản" onClick={onEdit}>
+            <Icon name="admin" size={16} /> Sửa metadata
+          </button>
+        )}
+        <Link className="btn btn-ghost" href={`/replace?old=${encodeURIComponent(doc.id)}`} title="Thay thế văn bản này">
+          <Icon name="replace" size={16} /> Thay thế
+        </Link>
+        {doc.webUrl ? (
+          <a className="btn btn-primary" href={doc.webUrl} target="_blank" rel="noreferrer">
+            <Icon name="download" size={16} /> Tải xuống
+          </a>
+        ) : (
+          <button className="btn btn-primary" disabled style={{ opacity: 0.55 }}>
+            <Icon name="download" size={16} /> Tải xuống
+          </button>
+        )}
       </div>
     </div>
   );

@@ -164,6 +164,60 @@ export const FACET_DEFS: FacetDef[] = [
   { key: 'hasEditableSource', label: 'Bản mềm', open: false, get: (d) => (d.editableSource ? 'Có bản mềm' : 'Thiếu bản mềm') },
 ];
 
+// ── Sort (BUG#19) ──────────────────────────────────────────────────────────
+export type SortKey =
+  | 'ngayBanHanh_desc'
+  | 'ngayBanHanh_asc'
+  | 'soVanBan_asc'
+  | 'soVanBan_desc'
+  | 'relevance'
+  | 'conf_desc';
+
+export const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+  { key: 'ngayBanHanh_desc', label: 'Ngày ban hành mới nhất' },
+  { key: 'ngayBanHanh_asc', label: 'Ngày ban hành cũ nhất' },
+  { key: 'soVanBan_asc', label: 'Số văn bản A→Z' },
+  { key: 'soVanBan_desc', label: 'Số văn bản Z→A' },
+  { key: 'relevance', label: 'Độ liên quan' },
+  { key: 'conf_desc', label: 'Độ tin cậy cao trước' },
+];
+
+export const DEFAULT_SORT: SortKey = 'ngayBanHanh_desc';
+
+const CONF_RANK: Record<string, number> = { High: 4, Medium: 3, Low: 2, NeedsReview: 1 };
+
+function dateKey(d: IDocument): string {
+  const ext = d as IDocument & { modified?: string; created?: string };
+  return (d.ngayBanHanh || (d.namBanHanh ? `${d.namBanHanh}-00-00` : '') || ext.modified || ext.created || '').toString();
+}
+
+export function sortDocuments(docs: IDocument[], sort: SortKey): IDocument[] {
+  if (sort === 'relevance') return docs;
+  const arr = [...docs];
+  switch (sort) {
+    case 'ngayBanHanh_desc':
+      arr.sort((a, b) => dateKey(b).localeCompare(dateKey(a)) || (b.id ?? '').localeCompare(a.id ?? ''));
+      break;
+    case 'ngayBanHanh_asc':
+      arr.sort((a, b) => dateKey(a).localeCompare(dateKey(b)) || (a.id ?? '').localeCompare(b.id ?? ''));
+      break;
+    case 'soVanBan_asc':
+      arr.sort((a, b) => (a.soVanBan ?? '').localeCompare(b.soVanBan ?? '', 'vi', { numeric: true }));
+      break;
+    case 'soVanBan_desc':
+      arr.sort((a, b) => (b.soVanBan ?? '').localeCompare(a.soVanBan ?? '', 'vi', { numeric: true }));
+      break;
+    case 'conf_desc':
+      arr.sort(
+        (a, b) =>
+          (CONF_RANK[b.metadataConfidence ?? ''] ?? 0) - (CONF_RANK[a.metadataConfidence ?? ''] ?? 0) ||
+          dateKey(b).localeCompare(dateKey(a))
+      );
+      break;
+  }
+  return arr;
+}
+
 /** Chuẩn hóa tiếng Việt: bỏ dấu, đ→d, lowercase (để match không phụ thuộc dấu/hoa thường). */
 export function normalizeVi(s: string): string {
   return (s ?? '')

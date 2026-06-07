@@ -5,16 +5,19 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Icon from '@/components/shell/Icon';
 import { IDocument } from '@dms/models/IDocument';
 import { isExpired } from '@dms/utils/standardization';
-import { FACET_DEFS, matchesKeyword, toSearchDoc, SearchDoc } from './searchTypes';
+import {
+  FACET_DEFS, matchesKeyword, toSearchDoc, SearchDoc,
+  SortKey, SORT_OPTIONS, DEFAULT_SORT, sortDocuments,
+} from './searchTypes';
 import SearchSubBar, { ViewMode } from './SearchSubBar';
 import SearchBar from './SearchBar';
 import ActiveChips, { ActiveChip } from './ActiveChips';
 import FilterPanel, { FacetGroup } from './FilterPanel';
-import DocumentList, { SortKey } from './DocumentList';
+import DocumentList from './DocumentList';
 import CardGrid from './CardGrid';
 import PreviewPane from './PreviewPane';
 import FastPdfModal from './FastPdfModal';
-import EditMetadataDrawer from '@/components/document-detail/EditMetadataDrawer';
+import EditMetadataModal from '@/components/document-detail/EditMetadataModal';
 
 interface DocsResponse {
   ok: boolean;
@@ -34,14 +37,6 @@ function useDebounced<T>(value: T, ms: number): T {
     return () => clearTimeout(t);
   }, [value, ms]);
   return v;
-}
-
-function sortDocs(docs: IDocument[], sort: SortKey): IDocument[] {
-  if (sort === 'relevance') return docs;
-  const arr = [...docs];
-  if (sort === 'newest') arr.sort((a, b) => (b.ngayBanHanh ?? '').localeCompare(a.ngayBanHanh ?? ''));
-  else if (sort === 'num') arr.sort((a, b) => (a.soVanBan ?? '').localeCompare(b.soVanBan ?? '', 'vi', { numeric: true }));
-  return arr;
 }
 
 export default function SearchCenterPage(): React.ReactElement {
@@ -65,7 +60,7 @@ export default function SearchCenterPage(): React.ReactElement {
   const [selectedId, setSelectedId] = React.useState<string | null>(searchParams.get('sel'));
   const [sort, setSort] = React.useState<SortKey>(() => {
     const s = searchParams.get('sort');
-    return s === 'newest' || s === 'num' ? s : 'relevance';
+    return SORT_OPTIONS.some((o) => o.key === s) ? (s as SortKey) : DEFAULT_SORT;
   });
   const [quickDoc, setQuickDoc] = React.useState<SearchDoc | null>(null); // BUG#9 modal
   const [canWrite, setCanWrite] = React.useState(false); // BUG#12A
@@ -88,7 +83,7 @@ export default function SearchCenterPage(): React.ReactElement {
     const q = dq.trim();
     if (q) p.set('q', q);
     if (mode !== '3col') p.set('view', mode);
-    if (sort !== 'relevance') p.set('sort', sort);
+    if (sort !== DEFAULT_SORT) p.set('sort', sort);
     for (const [key, set] of Object.entries(selected)) {
       for (const v of set) p.append(key, v);
     }
@@ -187,7 +182,7 @@ export default function SearchCenterPage(): React.ReactElement {
     return showExpired ? byFacets : byFacets.filter((d) => !isExpired(d));
   }, [afterKeyword, applyFacets, showExpired]);
 
-  const viewDocs: SearchDoc[] = React.useMemo(() => sortDocs(filtered, sort).map(toSearchDoc), [filtered, sort]);
+  const viewDocs: SearchDoc[] = React.useMemo(() => sortDocuments(filtered, sort).map(toSearchDoc), [filtered, sort]);
 
   const selectedDoc = React.useMemo(
     () => viewDocs.find((v) => v.id === selectedId) ?? viewDocs[0] ?? null,
@@ -241,7 +236,7 @@ export default function SearchCenterPage(): React.ReactElement {
 
   return (
     <div className="sc-root">
-      <SearchSubBar count={filtered.length} mode={mode} onMode={setMode} />
+      <SearchSubBar count={filtered.length} mode={mode} onMode={setMode} sort={sort} onSort={setSort} />
 
       <div className="searchrow">
         <SearchBar value={query} onChange={setQuery} onClear={() => setQuery('')} />
@@ -293,8 +288,6 @@ export default function SearchCenterPage(): React.ReactElement {
             onOpen={openDetail}
             onQuick={openQuick}
             onPrefetch={prefetchDetail}
-            sort={sort}
-            onSort={setSort}
           />
         )}
 
@@ -314,7 +307,7 @@ export default function SearchCenterPage(): React.ReactElement {
       )}
 
       {editingDoc && (
-        <EditMetadataDrawer
+        <EditMetadataModal
           doc={editingDoc}
           onClose={() => setEditingDoc(null)}
           onSaved={() => {

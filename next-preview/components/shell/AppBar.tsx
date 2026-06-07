@@ -8,7 +8,7 @@ import Icon from './Icon';
 //  - Ctrl/Cmd+K focus vào nó (xem GlobalShortcuts) khi không ở /search.
 //  - Enter → điều hướng sang /search?q=… ; khi ĐANG ở /search, mirror URL q để 2 ô search
 //    (header + Search Center) KHÔNG lệch nhau (BUG#1).
-export default function AppBar(): React.ReactElement {
+export default function AppBar({ onMenu }: { onMenu?: () => void } = {}): React.ReactElement {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -30,6 +30,9 @@ export default function AppBar(): React.ReactElement {
 
   return (
     <header className="appbar">
+      <button type="button" className="appbar-menu" onClick={onMenu} title="Menu" aria-label="Mở menu">
+        <Icon name="list" />
+      </button>
       <div className="logo">
         <span className="mark" />
         <span>BHL <span style={{ fontWeight: 500, opacity: 0.85 }}>- Văn bản điều hành</span></span>

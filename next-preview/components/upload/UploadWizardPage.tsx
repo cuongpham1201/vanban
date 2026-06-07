@@ -15,7 +15,7 @@ import { EMPTY_FORM, UploadForm, SelectedFile } from './uploadTypes';
 export default function UploadWizardPage(): React.ReactElement {
   const [step, setStep] = React.useState(0);
   const [file, setFile] = React.useState<SelectedFile | null>(null);
-  const [attachSource, setAttachSource] = React.useState(true);
+  const [editableFile, setEditableFile] = React.useState<SelectedFile | null>(null); // BUG#18 bản mềm
   const [form, setForm] = React.useState<UploadForm>(EMPTY_FORM);
 
   const [canWrite, setCanWrite] = React.useState(false);
@@ -62,7 +62,7 @@ export default function UploadWizardPage(): React.ReactElement {
   const reset = (): void => {
     setForm(EMPTY_FORM);
     setFile(null);
-    setAttachSource(true);
+    setEditableFile(null);
     setStep(0);
     setPublishError(null);
     setDupMatches(null);
@@ -82,6 +82,9 @@ export default function UploadWizardPage(): React.ReactElement {
     try {
       const fd = new FormData();
       fd.append('pdf', file.raw);
+      if (editableFile?.raw) {
+        fd.append('editable', editableFile.raw); // BUG#18: bản mềm DOCX/XLSX (route đã hỗ trợ)
+      }
       fd.append('metadata', JSON.stringify(form));
       fd.append('capLuuTru', form.capLuuTru); // folder lưu file (tách khỏi DonViSoHuu metadata)
       fd.append('idempotencyKey', idemKey);
@@ -136,7 +139,7 @@ export default function UploadWizardPage(): React.ReactElement {
         <div className="card card-pad">
           {step === 0 && (
             <div className="panel">
-              <FileDropzone file={file} onFile={setFile} attachSource={attachSource} onAttachToggle={() => setAttachSource((v) => !v)} />
+              <FileDropzone file={file} onFile={setFile} editableFile={editableFile} onEditableFile={setEditableFile} />
             </div>
           )}
           {step === 1 && (

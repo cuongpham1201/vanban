@@ -133,9 +133,31 @@
 .nav-item.active { background: var(--navy-050); color: var(--navy-700); font-weight: 600; }
 .nav-item.active svg { color: var(--navy-600); }
 .nav-item .count { margin-left: auto; font-size: var(--fs-2xs); color: var(--gray-400); font-weight: 600; }
+.nav-pin { margin-top: 8px; display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: var(--r-sm);
+  border: 1px dashed var(--gray-300); background: transparent; color: var(--gray-600); font: inherit; font-size: var(--fs-xs);
+  font-weight: 600; cursor: pointer; }
+.nav-pin:hover { background: var(--gray-100); color: var(--navy-600); }
+.dms-shell.pinned .nav-pin { border-style: solid; color: var(--navy-600); background: var(--navy-050); }
 .appwrap { display: flex; height: 100%; }
 .appbody { flex: 1; display: flex; min-width: 0; }
 .maincol { flex: 1; min-width: 0; overflow: auto; }
+
+/* ☰ menu button — chỉ hiện ở mobile/tablet (BUG#16). */
+.appbar-menu { display: none; width: 34px; height: 34px; border: 0; background: transparent; color: #fff;
+  border-radius: var(--r-sm); place-items: center; cursor: pointer; }
+.appbar-menu:hover { background: rgba(255,255,255,.12); }
+.appbar-menu svg { width: 20px; height: 20px; }
+.sidenav-backdrop { display: none; }
+
+@media (max-width: 900px) {
+  .appbar-menu { display: grid; }
+  .appbar .gsearch { display: none; } /* nhường chỗ; dùng /search để tìm */
+  /* Sidebar thành drawer trượt từ trái, ẩn mặc định. */
+  .sidenav { position: fixed; top: 52px; bottom: 0; left: 0; z-index: 40; width: 264px;
+    transform: translateX(-100%); transition: transform .2s ease; box-shadow: var(--sh-2, 4px 0 24px -8px rgba(0,0,0,.3)); }
+  .sidenav.open { transform: translateX(0); }
+  .sidenav-backdrop { display: block; position: fixed; inset: 52px 0 0 0; background: rgba(15,31,77,.4); z-index: 39; }
+}
 
 /* UTIL */
 .row { display: flex; align-items: center; } .col { display: flex; flex-direction: column; }
