@@ -8,7 +8,7 @@ import { DistItem } from './dashboardTypes';
 export default function DepartmentChart({ items, loading, hrefFor }: { items: DistItem[]; loading: boolean; hrefFor?: (label: string) => string }): React.ReactElement {
   return (
     <div className="widget">
-      <div className="whead"><h2>Top đơn vị phát hành</h2></div>
+      <div className="whead"><h2>Top đơn vị soạn thảo</h2></div>
       <div className="wbody">
         {loading ? (
           <div className="db-empty">Đang tải…</div>
