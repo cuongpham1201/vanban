@@ -19,5 +19,6 @@ declare module 'next-auth/jwt' {
     refreshToken?: string;
     expiresAt?: number; // epoch seconds
     error?: string;
+    teams?: boolean; // #31 — phiên đăng nhập qua Teams SSO (OBO Graph token)
   }
 }

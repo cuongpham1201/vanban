@@ -4,6 +4,7 @@ import * as React from 'react';
 import { signIn } from 'next-auth/react';
 import { useSearchParams } from 'next/navigation';
 import { LOGO_BIA_HALONG } from '@dms/assets/logoBiaHaLong';
+import TeamsSsoAuto from '@/components/auth/TeamsSsoAuto';
 
 // Map mã lỗi NextAuth → thông điệp tiếng Việt thân thiện.
 function errorMessage(code: string | null): string | undefined {
@@ -49,6 +50,8 @@ export default function SignInClient(): React.ReactElement {
 
   return (
     <>
+      {/* #31 — Teams SSO auto-login. Trong Teams: overlay + auto SSO. Ngoài Teams: render null → UI web bên dưới. */}
+      <TeamsSsoAuto callbackUrl={callbackUrl} />
       <style>{`
         .vb-login { min-height: 100dvh; display: grid; grid-template-columns: 1.05fr 1fr;
           font-family: 'Segoe UI','Segoe UI Web (West European)',-apple-system,BlinkMacSystemFont,Roboto,'Helvetica Neue',sans-serif; }

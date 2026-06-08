@@ -1,5 +1,11 @@
-import type { NextAuthOptions } from 'next-auth';
+import type { NextAuthOptions, User } from 'next-auth';
 import AzureADProvider from 'next-auth/providers/azure-ad';
+import CredentialsProvider from 'next-auth/providers/credentials';
+import { verifyTeamsSsoToken } from '@/lib/teams/teamsSsoVerify';
+import { exchangeTeamsTokenForGraph } from '@/lib/teams/oboExchange';
+
+// #31 — user trả từ authorize của teams-sso (mang theo Graph token đã OBO sang jwt callback).
+interface TeamsAuthUser { id: string; email: string; name: string; gToken?: string; gRefresh?: string; gExp?: number; }
 
 // Delegated scopes — KHỚP với API permissions đã grant cho Entra app "Vanbandieuhanh-API":
 //   User.Read · Sites.Read.All · Files.Read.All  (+ offline_access để có refresh token).
@@ -110,6 +116,37 @@ function isInternalEmail(email: string | null | undefined): boolean {
   return (email ?? '').toLowerCase().trim().endsWith(ALLOWED_DOMAIN);
 }
 
+// #31 — Teams Tab SSO. authorize(): verify Teams JWT → OBO sang Graph token (DMS đọc cần token này).
+// Thất bại verify/OBO → null → client fallback (web login / mở trình duyệt). KHÔNG ảnh hưởng Azure AD/dev.
+const teamsSsoProvider = CredentialsProvider({
+  id: 'teams-sso',
+  name: 'Teams SSO',
+  credentials: { token: { label: 'Teams SSO Token', type: 'text' } },
+  async authorize(credentials) {
+    const token = credentials?.token?.trim();
+    if (!token) return null;
+    const verified = await verifyTeamsSsoToken(token);
+    if (!verified.ok || !verified.user) {
+      // eslint-disable-next-line no-console
+      console.warn('[auth][teams-sso] verify failed:', verified.error);
+      return null;
+    }
+    const obo = await exchangeTeamsTokenForGraph(token);
+    if (!obo.ok) {
+      // eslint-disable-next-line no-console
+      console.warn('[auth][teams-sso] OBO failed:', obo.error);
+      return null; // không có Graph token → DMS không đọc được → fallback
+    }
+    // eslint-disable-next-line no-console
+    console.info(`[auth][teams-sso] ok email=${verified.user.email}`);
+    const u: TeamsAuthUser = {
+      id: verified.user.oid, email: verified.user.email, name: verified.user.name,
+      gToken: obo.accessToken, gRefresh: obo.refreshToken, gExp: obo.expiresAt,
+    };
+    return u as unknown as User;
+  },
+});
+
 export const authOptions: NextAuthOptions = {
   // NextAuth v4 đọc NEXTAUTH_SECRET tự động; khai báo tường minh cho rõ ràng + fail sớm.
   secret: process.env.NEXTAUTH_SECRET,
@@ -141,6 +178,8 @@ export const authOptions: NextAuthOptions = {
         };
       },
     }),
+    // Teams Tab SSO — verify Entra JWT từ Teams client (production OK). Giữ nguyên Azure AD ở trên.
+    teamsSsoProvider,
   ],
   session: { strategy: 'jwt' },
   // Trang đăng nhập + lỗi tùy biến (thay trang mặc định /api/auth/signin tiếng Anh).
@@ -166,7 +205,11 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     // Domain restriction — CHỈ tài khoản công ty (@biahalong.com) được đăng nhập.
     // Người ngoài → redirect /unauthorized (không tạo session). KHÔNG log email/secret.
-    async signIn({ user }) {
+    async signIn({ user, account }) {
+      // Teams SSO — domain đã verify trong verifyTeamsSsoToken(); tin kết quả.
+      if (account?.provider === 'teams-sso') {
+        return true;
+      }
       if (!isInternalEmail(user?.email)) {
         // eslint-disable-next-line no-console
         console.warn('[auth] denied non-company user');
@@ -174,9 +217,18 @@ export const authOptions: NextAuthOptions = {
       }
       return true;
     },
-    async jwt({ token, account }) {
+    async jwt({ token, account, user }) {
       // Đăng nhập lần đầu — lưu token từ account.
       if (account) {
+        // Teams SSO: Graph token lấy từ OBO (đính kèm trong user). Refresh dùng refresh_token như Azure AD.
+        if (account.provider === 'teams-sso') {
+          const tu = user as unknown as TeamsAuthUser | undefined;
+          token.teams = true;
+          token.accessToken = tu?.gToken;
+          token.refreshToken = tu?.gRefresh;
+          token.expiresAt = tu?.gExp ?? Math.floor(Date.now() / 1000) + 3600;
+          return token;
+        }
         token.accessToken = account.access_token as string | undefined;
         token.refreshToken = account.refresh_token as string | undefined;
         token.expiresAt = (account.expires_at as number | undefined) ?? Math.floor(Date.now() / 1000) + 3600;
