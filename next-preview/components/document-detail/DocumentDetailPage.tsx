@@ -6,7 +6,7 @@ import { IDocument } from '@dms/models/IDocument';
 import { toDetailDoc } from './documentDetailTypes';
 import DocumentHeader from './DocumentHeader';
 import DocumentPreview from './DocumentPreview';
-import MetadataPanel from './MetadataPanel';
+import MetadataPanel, { DetailTab } from './MetadataPanel';
 import EditMetadataDrawer from './EditMetadataDrawer';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 import { deleteDocument } from '@/lib/dms/deleteClient';
@@ -37,6 +37,16 @@ export default function DocumentDetailPage({ id }: { id: string }): React.ReactE
   const [toast, setToast] = React.useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
+  // BUG#27: tab điều khiển nội dung; mobile chỉ hiện PDF khi tab = "Thông tin".
+  const [tab, setTab] = React.useState<DetailTab>('info');
+  const [isMobile, setIsMobile] = React.useState(false);
+  React.useEffect(() => {
+    const mq = window.matchMedia('(max-width: 820px)');
+    const apply = (): void => setIsMobile(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
 
   const onDelete = React.useCallback(async (): Promise<void> => {
     setDeleting(true);
@@ -145,9 +155,9 @@ export default function DocumentDetailPage({ id }: { id: string }): React.ReactE
   return (
     <div className="dd-root">
       <DocumentHeader doc={detail} returnUrl={returnUrl} canWrite={canWrite} onEdit={() => setEditing(true)} onDelete={() => setConfirmDelete(true)} />
-      <div className="split">
-        <DocumentPreview doc={detail} />
-        <MetadataPanel doc={detail} />
+      <div className={`split ${isMobile && tab !== 'info' ? 'tab-only' : ''}`}>
+        {(!isMobile || tab === 'info') && <DocumentPreview doc={detail} />}
+        <MetadataPanel doc={detail} tab={tab} onTab={setTab} />
       </div>
 
       {editing && (

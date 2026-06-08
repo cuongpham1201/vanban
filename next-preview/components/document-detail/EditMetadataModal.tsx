@@ -17,7 +17,7 @@ export default function EditMetadataModal({
   onSaved: (warning?: string) => void;
 }): React.ReactElement {
   const isPdf = doc.fileKind === 'pdf' && /^\d+$/.test(doc.id);
-  const fileUrl = `/api/documents/${encodeURIComponent(doc.id)}/file`;
+  const fileUrl = `/api/documents/${encodeURIComponent(doc.id)}/file#view=FitH`;
 
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {

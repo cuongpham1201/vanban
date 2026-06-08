@@ -78,6 +78,7 @@ export default function SearchCenterPage(): React.ReactElement {
   };
   // BUG#24: mobile ép view = list (không 3 cột). Không đổi state `mode` để không ghi URL.
   const [isMobile, setIsMobile] = React.useState(false);
+  const [filterOpen, setFilterOpen] = React.useState(false); // BUG#29 mobile filter drawer
   React.useEffect(() => {
     const mq = window.matchMedia('(max-width: 767px)');
     const apply = (): void => setIsMobile(mq.matches);
@@ -330,7 +331,13 @@ export default function SearchCenterPage(): React.ReactElement {
       )}
 
       <div className="searchrow">
-        <SearchBar value={query} onChange={setQuery} onClear={() => setQuery('')} />
+        <div className="searchrow-top">
+          <SearchBar value={query} onChange={setQuery} onClear={() => setQuery('')} />
+          {/* BUG#29: mobile chỉ còn Search + Sort + nút Bộ lọc; chips/facets vào drawer. */}
+          <button type="button" className="sc-filter-btn" onClick={() => setFilterOpen(true)}>
+            <Icon name="filter" /> Bộ lọc{chips.length ? ` (${chips.length})` : ''}
+          </button>
+        </div>
         <ActiveChips
           chips={chips}
           onRemove={toggleFacet}
@@ -405,6 +412,29 @@ export default function SearchCenterPage(): React.ReactElement {
           />
         )}
       </div>
+
+      {/* BUG#29: Filter drawer cho mobile — chips + facets gom vào đây. */}
+      {filterOpen && (
+        <div className="sc-filter-overlay" onClick={() => setFilterOpen(false)}>
+          <div className="sc-filter-drawer scrollbar" onClick={(e) => e.stopPropagation()}>
+            <div className="sc-filter-head">
+              <span className="t-h3">Bộ lọc</span>
+              <button className="btn btn-ghost btn-icon" aria-label="Đóng" onClick={() => setFilterOpen(false)}>
+                <Icon name="x" />
+              </button>
+            </div>
+            <div className="sc-filter-chips">
+              <ActiveChips chips={chips} onRemove={toggleFacet} keyword={dq.trim()} onClearKeyword={() => setQuery('')} />
+            </div>
+            <FilterPanel groups={facetGroups} selected={selected} onToggle={toggleFacet} onClearAll={() => setSelected({})} />
+            <div className="sc-filter-foot">
+              <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} onClick={() => setFilterOpen(false)}>
+                Xem {filtered.length.toLocaleString('vi-VN')} kết quả
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {quickDoc && (
         <FastPdfModal doc={quickDoc} detailHref={detailHref(quickDoc.id)} onClose={() => setQuickDoc(null)} />

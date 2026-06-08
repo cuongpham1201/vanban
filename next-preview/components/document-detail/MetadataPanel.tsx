@@ -6,7 +6,8 @@ import AttachmentsPanel from './AttachmentsPanel';
 import RelatedDocuments from './RelatedDocuments';
 import HistoryPanel from './HistoryPanel';
 
-type Tab = 'info' | 'att' | 'rel' | 'rep' | 'tl';
+export type DetailTab = 'info' | 'att' | 'rel' | 'rep' | 'tl';
+type Tab = DetailTab;
 
 function Row({ k, v }: { k: string; v: React.ReactNode }): React.ReactElement {
   return (
@@ -105,8 +106,22 @@ function RepPane({ doc }: { doc: DetailDoc }): React.ReactElement {
 }
 
 // Panel metadata bên phải — port từ DocumentDetail.html .meta + tabs.
-export default function MetadataPanel({ doc }: { doc: DetailDoc }): React.ReactElement {
-  const [tab, setTab] = React.useState<Tab>('info');
+// BUG#27: tab là CONTROLLED (state ở DocumentDetailPage) để quyết định việc render PDF trên mobile.
+export default function MetadataPanel({
+  doc,
+  tab: tabProp,
+  onTab,
+}: {
+  doc: DetailDoc;
+  tab?: Tab;
+  onTab?: (t: Tab) => void;
+}): React.ReactElement {
+  const [tabLocal, setTabLocal] = React.useState<Tab>('info');
+  const tab = tabProp ?? tabLocal;
+  const setTab = (t: Tab): void => {
+    if (onTab) onTab(t);
+    else setTabLocal(t);
+  };
   const attN = doc.editable && doc.editableSourceUrl ? 1 : 0;
   const relN = doc.relatedList.length;
   const repN = doc.thaythe ? 1 : 0;

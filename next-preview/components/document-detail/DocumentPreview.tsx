@@ -9,7 +9,9 @@ import { DetailDoc } from './documentDetailTypes';
 //  - Không phải PDF (DOCX/...) → fallback tải xuống/mở file gốc.
 export default function DocumentPreview({ doc }: { doc: DetailDoc }): React.ReactElement {
   const isPdf = doc.type === 'pdf';
+  // BUG#28: #view=FitH → PDF viewer fit chiều ngang (mobile thấy trọn bề ngang, không kéo ngang).
   const fileUrl = `/api/documents/${encodeURIComponent(doc.id)}/file`;
+  const pdfViewUrl = `${fileUrl}#view=FitH`;
 
   return (
     <section className="viewer" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
@@ -31,7 +33,7 @@ export default function DocumentPreview({ doc }: { doc: DetailDoc }): React.Reac
       {isPdf ? (
         <iframe
           className="pdfframe"
-          src={fileUrl}
+          src={pdfViewUrl}
           title={`PDF ${doc.num}`}
           style={{ flex: 1, width: '100%', border: 0, minHeight: 520, background: 'var(--gray-100)' }}
         />
