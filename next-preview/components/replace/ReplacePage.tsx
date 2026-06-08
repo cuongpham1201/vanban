@@ -136,7 +136,10 @@ export default function ReplacePage(): React.ReactElement {
       <div className="wrap">
         <h1 className="t-h1" style={{ margin: '0 0 4px' }}>Thay thế văn bản</h1>
         <p className="t-sm mut" style={{ margin: '0 0 24px' }}>
-          Liên kết văn bản mới với văn bản cũ. Đây là bản xem trước giao diện — quan hệ thay thế chưa ghi xuống SharePoint.
+          Liên kết văn bản mới với văn bản cũ.{' '}
+          {canWrite
+            ? 'Khi hoàn tất, quan hệ thay thế sẽ được ghi xuống SharePoint (bản cũ chuyển “Hết hiệu lực”).'
+            : 'Bạn không có quyền ghi — đây là bản xem trước, chưa ghi xuống SharePoint.'}
         </p>
 
         {/* Stepper */}

@@ -100,7 +100,7 @@ export default function UploadWizardPage(): React.ReactElement {
       }
       if (res.status === 409 && j.error === 'duplicate') {
         setDupMatches(j.matches ?? []);
-        setPublishError('Số văn bản đã tồn tại.');
+        setPublishError('Số văn bản đã tồn tại. Bạn vẫn có thể tạo bản mới hoặc chuyển sang thay thế.');
         return;
       }
       setPublishError(j?.error ?? `Lỗi (HTTP ${res.status}).`);

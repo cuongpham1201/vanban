@@ -42,8 +42,8 @@ export default function ReviewStep({ form, file }: { form: UploadForm; file: Sel
       <div className="ai-note info" style={{ marginTop: 20 }}>
         <div className="ic">i</div>
         <div className="t-sm">
-          Gợi ý “đánh dấu thay thế văn bản cũ” sẽ có ở Phase 5/6 (sau khi bật write). Đây là bản xem trước UI —
-          <b> chưa ghi SharePoint</b>.
+          Khi bấm <b>Xuất bản</b> (có quyền ghi), file sẽ được tải lên SharePoint. Nếu <b>Số văn bản</b> đã tồn tại,
+          hệ thống chỉ <b>cảnh báo</b> — bạn có thể <b>Vẫn tạo mới</b> hoặc <b>chuyển sang Thay thế</b>.
         </div>
       </div>
     </>

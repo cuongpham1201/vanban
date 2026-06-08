@@ -68,15 +68,6 @@ export async function POST(req: Request): Promise<NextResponse> {
     return NextResponse.json({ ok: false, error: 'Thiếu idempotencyKey.' }, { status: 422 });
   }
 
-  // 3b. Idempotency.
-  const idem = idemBegin(email, idempotencyKey);
-  if (idem.state === 'done') {
-    return NextResponse.json({ ...(idem.value as object), idempotentReplay: true }, { status: 200 });
-  }
-  if (idem.state === 'pending') {
-    return NextResponse.json({ ok: false, error: 'Yêu cầu đang được xử lý.' }, { status: 409 });
-  }
-
   try {
     // 4. Validate input.
     if (!(pdf instanceof File) || pdf.size === 0) {
@@ -120,10 +111,23 @@ export async function POST(req: Request): Promise<NextResponse> {
     const svc = new SharePointDmsService(appToken);
     const dup = await svc.checkDuplicateBySoVanBan(metadata.SoVanBan);
     if (dup.exists && !override) {
+      // BUG#34: trùng SoVanBan CHỈ là cảnh báo — KHÔNG chiếm idempotency lock, KHÔNG ghi.
+      // User bấm "Vẫn tạo mới" (override=true) sẽ qua được nhánh này và upload bình thường.
       return NextResponse.json(
         { ok: false, error: 'duplicate', matches: dup.matches },
         { status: 409 }
       );
+    }
+
+    // 5b. Idempotency — CHỈ khóa quanh thao tác GHI (sau validate + duplicate-check).
+    //     ⇒ trùng SoVanBan / lỗi validate KHÔNG để lại khóa 'pending' → "Vẫn tạo mới"/sửa rồi
+    //     thử lại được NGAY (sửa #34 stuck "Yêu cầu đang được xử lý"). Key = UUID per-attempt (KHÔNG dùng SoVanBan).
+    const idem = idemBegin(email, idempotencyKey);
+    if (idem.state === 'done') {
+      return NextResponse.json({ ...(idem.value as object), idempotentReplay: true }, { status: 200 });
+    }
+    if (idem.state === 'pending') {
+      return NextResponse.json({ ok: false, error: 'Yêu cầu đang được xử lý.' }, { status: 409 });
     }
 
     // 6+7+8. Tạo văn bản (resolve folder → upload PDF → editable → patch, retry+rollback).
