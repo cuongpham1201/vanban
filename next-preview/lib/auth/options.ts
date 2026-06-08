@@ -132,6 +132,18 @@ const teamsSsoProvider = CredentialsProvider({
   },
 });
 
+// #31K — Teams Tab chạy trong <iframe> Teams (ngữ cảnh CROSS-SITE). Cookie mặc định của NextAuth
+// dùng SameSite=Lax → trình duyệt KHÔNG gửi kèm trong iframe cross-site → GET /api/auth/session
+// không thấy Cookie: __Secure-next-auth.session-token → trả {} dù cookie đã tồn tại trong storage.
+// Khắc phục: session cookie SameSite=None + Secure (gửi được trong iframe).
+//   • SameSite=None BẮT BUỘC Secure=true (chỉ gửi qua https) → tên có prefix __Secure-.
+//   • Prod NEXTAUTH_URL=https://vanban.biahalong.com → đúng spec __Secure-next-auth.session-token.
+//   • Localhost (http) KHÔNG set được Secure cookie → fallback SameSite=Lax + tên KHÔNG prefix
+//     để chạy local vẫn đăng nhập được. Azure AD web (https) không đổi hành vi.
+const useSecureCookies = (process.env.NEXTAUTH_URL ?? '').startsWith('https://');
+const cookiePrefix = useSecureCookies ? '__Secure-' : '';
+const crossSiteSameSite: 'none' | 'lax' = useSecureCookies ? 'none' : 'lax';
+
 export const authOptions: NextAuthOptions = {
   // NextAuth v4 đọc NEXTAUTH_SECRET tự động; khai báo tường minh cho rõ ràng + fail sớm.
   secret: process.env.NEXTAUTH_SECRET,
@@ -167,6 +179,28 @@ export const authOptions: NextAuthOptions = {
     teamsSsoProvider,
   ],
   session: { strategy: 'jwt' },
+  // #31K — Cookie cross-site cho Teams iframe (xem ghi chú useSecureCookies ở trên).
+  cookies: {
+    // BẮT BUỘC: session cookie phải SameSite=None+Secure để gửi được trong iframe Teams.
+    // Tên prod = __Secure-next-auth.session-token (đúng spec). NextAuth tự chunk .0/.1 nếu cần.
+    sessionToken: {
+      name: `${cookiePrefix}next-auth.session-token`,
+      options: { httpOnly: true, sameSite: crossSiteSameSite, path: '/', secure: useSecureCookies },
+    },
+    // BẮT BUỘC: teams-sso là CredentialsProvider → signIn() POST /api/auth/callback/credentials chạy
+    // BÊN TRONG iframe (cross-site). Nếu csrf cookie là Lax → không gửi kèm POST → "MissingCSRF" →
+    // không tạo được session. Để None+Secure. Giữ prefix __Host- (Secure + path=/ + no Domain).
+    csrfToken: {
+      name: `${useSecureCookies ? '__Host-' : ''}next-auth.csrf-token`,
+      options: { httpOnly: true, sameSite: crossSiteSameSite, path: '/', secure: useSecureCookies },
+    },
+    // callbackUrl: theo None+Secure cho đồng nhất luồng iframe (giá trị cũng đi kèm trong POST body
+    // nên không nhạy cảm). Không bắt buộc nhưng tránh edge-case mất callback khi redirect cross-site.
+    callbackUrl: {
+      name: `${cookiePrefix}next-auth.callback-url`,
+      options: { sameSite: crossSiteSameSite, path: '/', secure: useSecureCookies },
+    },
+  },
   // Trang đăng nhập + lỗi tùy biến (thay trang mặc định /api/auth/signin tiếng Anh).
   pages: { signIn: '/signin', error: '/signin' },
   // Log lỗi OAuth AN TOÀN (không log secret/token) — hiện rõ nguyên nhân OAuthSignin trong pm2 logs.
