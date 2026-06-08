@@ -2,9 +2,10 @@
 
 import * as React from 'react';
 import { UploadForm, SelectedFile, REVIEW_KEYS, FIELD_LABEL, computeWarnings } from './uploadTypes';
+import { SearchDoc } from '@/components/replace/replaceTypes';
 
 // Bước 3 — review summary + cảnh báo. KHÔNG gọi API.
-export default function ReviewStep({ form, file }: { form: UploadForm; file: SelectedFile | null }): React.ReactElement {
+export default function ReviewStep({ form, file, replaceTarget }: { form: UploadForm; file: SelectedFile | null; replaceTarget?: SearchDoc | null }): React.ReactElement {
   const warnings = computeWarnings(form, file);
   return (
     <>
@@ -26,6 +27,12 @@ export default function ReviewStep({ form, file }: { form: UploadForm; file: Sel
           <span className="k">Có bản mềm</span>
           <span className="v">{form.hasEditableSource || '—'}</span>
         </div>
+        {replaceTarget && (
+          <div className="rev full">
+            <span className="k">Văn bản thay thế</span>
+            <span className="v"><b style={{ fontFamily: 'var(--font-mono)' }}>{replaceTarget.num}</b> — {replaceTarget.title}</span>
+          </div>
+        )}
       </div>
 
       {warnings.length > 0 && (

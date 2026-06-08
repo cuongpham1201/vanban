@@ -6,7 +6,11 @@ import FileDropzone from './FileDropzone';
 import MetadataForm from './MetadataForm';
 import ReviewStep from './ReviewStep';
 import PublishStep, { PublishResult } from './PublishStep';
+import ReplaceTargetPicker from './ReplaceTargetPicker';
 import { EMPTY_FORM, UploadForm, SelectedFile } from './uploadTypes';
+import { SearchDoc } from '@/components/replace/replaceTypes';
+
+const EXPIRED_LABEL = 'Hết hiệu lực';
 
 // Orchestrator Upload Wizard.
 //  - Mặc định (write tắt / không allowlist): GIỮ NGUYÊN chế độ xem trước (mô phỏng).
@@ -25,6 +29,11 @@ export default function UploadWizardPage(): React.ReactElement {
   const [result, setResult] = React.useState<PublishResult | null>(null);
   const [idemKey, setIdemKey] = React.useState<string>('');
   const [dynChoices, setDynChoices] = React.useState<Partial<Record<keyof UploadForm, string[]>> | undefined>();
+  // #35 — Văn bản thay thế chọn ngay trong wizard.
+  const [replaceTarget, setReplaceTarget] = React.useState<SearchDoc | null>(null);
+  const [replacedNum, setReplacedNum] = React.useState<string | null>(null);
+  // Chỉ replace khi đã chọn + KHÔNG phải văn bản đã Hết hiệu lực (Phase 6).
+  const replaceEligible = !!replaceTarget && replaceTarget.statusLabel !== EXPIRED_LABEL;
 
   React.useEffect(() => {
     setIdemKey(typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
@@ -67,6 +76,8 @@ export default function UploadWizardPage(): React.ReactElement {
     setPublishError(null);
     setDupMatches(null);
     setResult(null);
+    setReplaceTarget(null);
+    setReplacedNum(null);
     setIdemKey(typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
   };
 
@@ -94,13 +105,38 @@ export default function UploadWizardPage(): React.ReactElement {
       const res = await fetch('/api/documents/upload', { method: 'POST', body: fd, credentials: 'same-origin' });
       const j = await res.json();
       if (res.status === 201 && j.ok) {
+        // #35 — Nếu đã chọn văn bản thay thế (và không Hết hiệu lực): gọi Replace với newDocumentId.
+        if (replaceEligible && replaceTarget && j.listItemId && /^\d+$/.test(String(j.listItemId))) {
+          try {
+            const rep = await fetch('/api/documents/replace', {
+              method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ oldId: replaceTarget.id, newId: j.listItemId, markOldExpired: true, inheritMetadata: false }),
+            });
+            const rj = await rep.json();
+            if (rep.ok && rj.ok) {
+              setReplacedNum(replaceTarget.num);
+            } else {
+              setResult({ ...(j as PublishResult), warning: `Đã tải lên nhưng ghi thay thế thất bại: ${rj?.error ?? `HTTP ${rep.status}`}.` });
+              go(3);
+              return;
+            }
+          } catch (e) {
+            setResult({ ...(j as PublishResult), warning: `Đã tải lên nhưng lỗi mạng khi ghi thay thế: ${e instanceof Error ? e.message : String(e)}.` });
+            go(3);
+            return;
+          }
+        }
         setResult(j as PublishResult);
         go(3);
         return;
       }
       if (res.status === 409 && j.error === 'duplicate') {
         setDupMatches(j.matches ?? []);
-        setPublishError('Số văn bản đã tồn tại. Bạn vẫn có thể tạo bản mới hoặc chuyển sang thay thế.');
+        setPublishError(
+          replaceEligible
+            ? 'Văn bản này đang thay thế một văn bản hiện hữu. Bạn vẫn có thể tiếp tục xuất bản.'
+            : 'Số văn bản đã tồn tại. Bạn vẫn có thể tạo bản mới hoặc chuyển sang thay thế.'
+        );
         return;
       }
       setPublishError(j?.error ?? `Lỗi (HTTP ${res.status}).`);
@@ -130,8 +166,8 @@ export default function UploadWizardPage(): React.ReactElement {
         <h1 className="t-h1" style={{ margin: '0 0 4px' }}>Tải lên văn bản mới</h1>
         <p className="t-sm mut" style={{ margin: '0 0 28px' }}>
           {canWrite
-            ? 'Chế độ ghi thật đang bật (sandbox/allowlist). “Xuất bản” sẽ tải file lên SharePoint.'
-            : 'Bản xem trước UI — chọn file, nhập & kiểm tra metadata. Chưa ghi SharePoint.'}
+            ? 'Chọn file, nhập metadata; có thể chọn “Văn bản thay thế” để vừa tải lên vừa thay thế. “Xuất bản” sẽ tải file lên SharePoint.'
+            : 'Bản xem trước UI — bạn chưa có quyền ghi (DMS_WRITE). Chọn file, nhập & kiểm tra metadata.'}
         </p>
 
         <UploadStepper current={step} />
@@ -145,11 +181,12 @@ export default function UploadWizardPage(): React.ReactElement {
           {step === 1 && (
             <div className="panel">
               <MetadataForm form={form} onChange={onChange} dynamicChoices={dynChoices} />
+              <ReplaceTargetPicker target={replaceTarget} onChange={setReplaceTarget} />
             </div>
           )}
           {step === 2 && (
             <div className="panel">
-              <ReviewStep form={form} file={file} />
+              <ReviewStep form={form} file={file} replaceTarget={replaceEligible ? replaceTarget : null} />
               {publishError && (
                 <div className="uw-publish-error" style={{ marginTop: 14, padding: '10px 14px', background: 'var(--danger-100)', color: 'var(--danger-700)', borderRadius: 'var(--r-md)', fontSize: 'var(--fs-sm)' }}>
                   {publishError}
@@ -161,7 +198,8 @@ export default function UploadWizardPage(): React.ReactElement {
                       ))}
                       <div className="row gap-2" style={{ marginTop: 8 }}>
                         <button className="btn btn-subtle" onClick={() => void doPublish(true)} disabled={publishing}>Vẫn tạo mới</button>
-                        {dupMatches[0] && (
+                        {/* Phase 4: nếu đã chọn văn bản thay thế inline thì KHÔNG ép sang màn hình Replace. */}
+                        {!replaceEligible && dupMatches[0] && (
                           <a className="btn btn-ghost" href={`/replace?old=${encodeURIComponent(dupMatches[0].id)}`}>Chuyển sang Thay thế</a>
                         )}
                       </div>
@@ -173,7 +211,7 @@ export default function UploadWizardPage(): React.ReactElement {
           )}
           {step === 3 && (
             <div className="panel">
-              <PublishStep form={form} onReset={reset} result={result} />
+              <PublishStep form={form} onReset={reset} result={result} replacedNum={replacedNum} />
             </div>
           )}
 

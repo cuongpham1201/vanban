@@ -20,9 +20,9 @@ export default function MetadataForm({
   };
   return (
     <>
-      {/* BUG#18: ẩn box AI/OCR (chưa có chức năng thật). */}
+      {/* BUG#18: ẩn box AI/OCR. #35: ẩn textbox "Văn bản thay thế" — thay bằng document picker ở Upload Wizard. */}
       <div className="fgrid">
-        {FIELDS.map((f) => (
+        {FIELDS.filter((f) => f.key !== 'vanBanThayThe').map((f) => (
           <div className={f.full ? 'full' : ''} key={f.key}>
             <div className="lblrow">
               <span className="field-label" style={{ margin: 0 }}>

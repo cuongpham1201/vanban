@@ -1,5 +1,5 @@
-// Upload Wizard — định nghĩa form metadata V2 (UI only). Reuse choices từ
-// FALLBACK_METADATA_CHOICES (constant sẵn có). KHÔNG gọi backend, KHÔNG ghi SharePoint.
+// Upload Wizard — định nghĩa form metadata V2. Reuse choices từ FALLBACK_METADATA_CHOICES
+// (fallback khi chưa có schema động). Upload Write ghi thật khi có quyền (DMS_WRITE).
 import { FALLBACK_METADATA_CHOICES as C } from '@dms/utils/metadataChoices';
 
 export interface UploadForm {

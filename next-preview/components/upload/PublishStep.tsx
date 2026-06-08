@@ -19,23 +19,31 @@ export default function PublishStep({
   form,
   onReset,
   result,
+  replacedNum,
 }: {
   form: UploadForm;
   onReset: () => void;
   result?: PublishResult | null;
+  replacedNum?: string | null;
 }): React.ReactElement {
   const real = !!result?.ok;
+  const title = real ? (replacedNum ? 'Đã tải lên và thay thế thành công' : 'Tải lên thành công') : 'Hoàn tất (bản xem trước)';
   return (
     <div className="success">
       <div className="check">
         <Icon name="check" size={36} />
       </div>
-      <h2 className="t-h1" style={{ margin: '0 0 6px' }}>{real ? 'Tải lên thành công' : 'Hoàn tất (bản xem trước)'}</h2>
+      <h2 className="t-h1" style={{ margin: '0 0 6px' }}>{title}</h2>
       <p className="t-body mut" style={{ margin: '0 0 8px' }}>
         Văn bản{' '}
         <b style={{ color: 'var(--navy-600)', fontFamily: 'var(--font-mono)' }}>{form.soVanBan || '(chưa nhập số VB)'}</b>{' '}
         {real ? 'đã được tải lên SharePoint.' : 'đã sẵn sàng.'}
       </p>
+      {real && replacedNum && (
+        <p className="t-sm" style={{ color: 'var(--navy-600)', margin: '0 0 8px' }}>
+          Đã thay thế <b style={{ fontFamily: 'var(--font-mono)' }}>{replacedNum}</b> — văn bản cũ chuyển “Hết hiệu lực”.
+        </p>
+      )}
 
       {real ? (
         <>
@@ -50,7 +58,7 @@ export default function PublishStep({
         </>
       ) : (
         <p className="t-sm" style={{ color: 'var(--warning-700)', margin: '0 0 8px' }}>
-          Chưa ghi SharePoint (chế độ xem trước).
+          Chế độ xem trước — bạn chưa có quyền ghi (DMS_WRITE).
         </p>
       )}
 
