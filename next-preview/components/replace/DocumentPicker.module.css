@@ -1,0 +1,145 @@
+/* DocumentPicker — style tự chứa (KHÔNG phụ thuộc .rp-root / replace.css) để dùng được trên
+ * mọi route: /replace VÀ Upload Wizard (/upload → field "Văn bản thay thế").
+ * Port design DMS V2 (.picksearch/.suggest/.sg/.pickedcard) nhưng scope theo CSS Module. */
+
+/* Ô tìm kiếm — height ~40px, border #d0d7e2, radius 10px, focus ring nhẹ màu primary (navy). */
+.picksearch {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid #d0d7e2;
+  border-radius: 10px;
+  background: var(--white, #fff);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.picksearch:focus-within {
+  border-color: var(--navy-500, #2860a6);
+  box-shadow: 0 0 0 3px rgba(40, 96, 166, 0.18);
+}
+/* Ép kích thước icon search cố định — KHÔNG để SVG (viewBox, no width/height) phình to 300×150. */
+.picksearch svg {
+  width: 18px;
+  height: 18px;
+  color: var(--gray-400, #97a3b2);
+  flex-shrink: 0;
+}
+.picksearch input {
+  border: 0;
+  outline: none;
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: var(--fs-sm, 13px);
+  background: transparent;
+  color: var(--ink, #0a2444);
+}
+
+/* Danh sách gợi ý — card list, giới hạn chiều cao để KHÔNG đẩy layout wizard tràn. */
+.suggest {
+  margin-top: 8px;
+  border: 1px solid var(--gray-150, #eaeef3);
+  border-radius: var(--r-md, 8px);
+  overflow: hidden;
+  background: var(--white, #fff);
+}
+.suggestScroll {
+  max-height: 288px;
+  overflow-y: auto;
+}
+.hint {
+  padding: 8px 12px;
+  font-size: var(--fs-2xs, 11px);
+  font-weight: 600;
+  color: var(--gray-500, #6f7e8e);
+}
+.emptyHint {
+  padding: 14px 12px;
+  font-size: var(--fs-xs, 12px);
+  color: var(--gray-500, #6f7e8e);
+  line-height: 1.5;
+}
+
+/* Mỗi item gợi ý */
+.sg {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--gray-100, #f1f4f8);
+  transition: background 0.12s ease;
+}
+.sg:last-child {
+  border-bottom: 0;
+}
+.sg:hover {
+  background: var(--gray-050, #f7f9fc);
+}
+.sgPicked {
+  background: var(--navy-050, #eef3fa);
+}
+
+/* Badge PDF/DOC nhỏ trong item gợi ý */
+.sgFicon {
+  width: 24px;
+  height: 28px;
+  border-radius: 3px;
+  background: var(--gray-150, #eaeef3);
+  color: var(--gray-500, #6f7e8e);
+  display: grid;
+  place-items: center;
+  font-size: 7px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+/* Số văn bản nổi bật (mono) */
+.num {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--navy-600, #14498b);
+}
+.numSm {
+  font-size: var(--fs-2xs, 11px);
+}
+.title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Card "đã chọn" */
+.pickedcard {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px;
+  border-radius: var(--r-md, 8px);
+  margin-bottom: 12px;
+}
+.pickedcardOld {
+  border: 1px solid var(--navy-300, #84a4d2);
+  background: var(--navy-050, #eef3fa);
+}
+.pickedcardNew {
+  border: 1px solid var(--navy-400, #4a7cc0);
+  background: var(--white, #fff);
+}
+.ficon {
+  width: 40px;
+  height: 46px;
+  border-radius: var(--r-xs, 4px);
+  background: var(--red-100, #fbdcde);
+  color: var(--red-600, #cf1820);
+  display: grid;
+  place-items: center;
+  font-size: 9px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+.ficonNew {
+  background: var(--navy-050, #eef3fa);
+  color: var(--navy-600, #14498b);
+}
