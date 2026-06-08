@@ -13,6 +13,7 @@ import { normalizeMetadataPayload, validateUploadMetadata } from '@/lib/dms/writ
 import { buildDocumentFileName } from '@/lib/dms/fileNaming';
 import { invalidateDocumentsCache, getCachedDocuments } from '@/lib/dms/documentsCache';
 import { idemBegin, idemComplete, idemRelease } from '@/lib/dms/idempotency';
+import { notifyNewDocument } from '@/lib/dms/notifications/events';
 
 export const dynamic = 'force-dynamic';
 
@@ -170,6 +171,13 @@ export async function POST(req: Request): Promise<NextResponse> {
       ...(result.warning ? { warning: result.warning } : {}),
     };
     idemComplete(email, idempotencyKey, body);
+    // Phase 1 web notification — recipient = uploader hiện tại. Không throw nếu lỗi.
+    await notifyNewDocument({
+      actorEmail: email,
+      documentId: String(result.listItemId),
+      documentNumber: metadata.SoVanBan,
+      documentTitle: metadata.TrichYeu,
+    });
     return NextResponse.json(body, { status: 201 });
   } catch (e) {
     idemRelease(email, idempotencyKey); // cho phép thử lại

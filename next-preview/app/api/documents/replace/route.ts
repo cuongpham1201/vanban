@@ -8,6 +8,7 @@ import { GraphError } from '@/lib/graph/client';
 import { LibraryResolveError, resolveSiteId, resolveListId } from '@/lib/sharepoint/resolve';
 import { graphFetch } from '@/lib/graph/client';
 import { invalidateDocumentsCache } from '@/lib/dms/documentsCache';
+import { notifyDocumentReplaced } from '@/lib/dms/notifications/events';
 
 export const dynamic = 'force-dynamic';
 
@@ -97,6 +98,15 @@ export async function POST(req: Request): Promise<NextResponse> {
     warnings.push('Reverse-link (VanBanLienQuan) không ghi — cột đang dùng cho danh sách file nguồn; cần field V3 riêng.');
 
     invalidateDocumentsCache('replace');
+    // Phase 1 web notification — recipient = actor hiện tại. Không throw nếu lỗi.
+    await notifyDocumentReplaced({
+      actorEmail: actor,
+      documentId: newId,
+      documentNumber: newSo,
+      documentTitle: String(newF.TrichYeu ?? '').trim() || undefined,
+      oldDocumentNumber: oldSo,
+      newDocumentNumber: newSo,
+    });
     // eslint-disable-next-line no-console
     console.log('[dms-write][replace]', JSON.stringify({
       actor, oldId, newId, oldSo, newSo, markOldExpired, inheritMetadata,

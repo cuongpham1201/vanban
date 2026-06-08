@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import Icon from './Icon';
+import NotificationBell from './NotificationBell';
 
 // Thanh trên cùng (appbar). Global search là input thật (id="global-search"):
 //  - Ctrl/Cmd+K focus vào nó (xem GlobalShortcuts) khi không ở /search.
@@ -60,15 +61,7 @@ export default function AppBar({ onMenu }: { onMenu?: () => void } = {}): React.
       <div className="iconbtn" title="Tải lên" onClick={() => router.push('/upload')} role="button" tabIndex={0}>
         <Icon name="upload" />
       </div>
-      <div className="iconbtn" title="Thông báo" style={{ position: 'relative' }}>
-        <Icon name="bell" />
-        <span
-          style={{
-            position: 'absolute', top: 6, right: 7, width: 7, height: 7, borderRadius: '50%',
-            background: 'var(--gold-500)', border: '1.5px solid var(--navy-700)',
-          }}
-        />
-      </div>
+      <NotificationBell />
       <div className="iconbtn" title="Trợ giúp">
         <Icon name="help" />
       </div>

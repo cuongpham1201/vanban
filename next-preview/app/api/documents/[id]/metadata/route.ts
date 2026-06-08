@@ -7,6 +7,7 @@ import { SharePointDmsService } from '@/lib/dms/sharepointDmsService';
 import { GraphError } from '@/lib/graph/client';
 import { LibraryResolveError } from '@/lib/sharepoint/resolve';
 import { invalidateDocumentsCache } from '@/lib/dms/documentsCache';
+import { notifyDocumentUpdated } from '@/lib/dms/notifications/events';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,6 +64,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     // BUG#23: clear server cache (dùng chung bởi /api/documents, /api/documents/[id], /api/dashboard)
     // → Search/Detail/Dashboard re-fetch thấy metadata mới ngay, không stale tới 5 phút.
     invalidateDocumentsCache('edit');
+    // Phase 1 web notification — recipient = actor hiện tại. Không throw nếu lỗi.
+    await notifyDocumentUpdated({
+      actorEmail: (session?.user?.email as string | undefined) ?? 'unknown',
+      documentId: id,
+      documentNumber: typeof fields.SoVanBan === 'string' ? fields.SoVanBan : undefined,
+      changedFields: Object.keys(updated),
+    });
     return NextResponse.json({ ok: true, fields: updated, skipped, updatedAt });
   } catch (e) {
     if (e instanceof DmsWriteError) {
