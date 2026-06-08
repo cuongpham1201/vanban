@@ -104,6 +104,9 @@ export async function POST(req: Request): Promise<NextResponse> {
       documentId: newId,
       documentNumber: newSo,
       documentTitle: String(newF.TrichYeu ?? '').trim() || undefined,
+      donViSoanThao: String(newF.DonViPhatHanh ?? '').trim() || undefined,
+      ngayBanHanh: String(newF.NgayBanHanh ?? '').trim() || undefined,
+      trangThai: String(newF.TrangThai ?? '').trim() || undefined,
       oldDocumentNumber: oldSo,
       newDocumentNumber: newSo,
     });

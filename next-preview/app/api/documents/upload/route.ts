@@ -177,6 +177,9 @@ export async function POST(req: Request): Promise<NextResponse> {
       documentId: String(result.listItemId),
       documentNumber: metadata.SoVanBan,
       documentTitle: metadata.TrichYeu,
+      donViSoanThao: metadata.DonViPhatHanh,
+      ngayBanHanh: metadata.NgayBanHanh,
+      trangThai: metadata.TrangThai,
     });
     return NextResponse.json(body, { status: 201 });
   } catch (e) {
