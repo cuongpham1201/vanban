@@ -1,12 +1,15 @@
-// Shared client-side filter config store (TẠM THỜI — chưa SharePoint/API write).
-// Nguồn chân lý DUY NHẤT cho "filter nào hiển thị ở Search Center", dùng chung bởi:
-//   - /admin tab "Bộ lọc tìm kiếm" (đọc + ghi)
-//   - /search Search Center (chỉ đọc)
-// Lưu localStorage key: dms.search.filterConfig.v1.
+// Shared filter config cho "filter nào hiển thị ở Search Center", dùng chung bởi:
+//   - /admin tab "Bộ lọc tìm kiếm" (đọc + ghi qua API)
+//   - /search Search Center (chỉ đọc qua API)
+//
+// SOURCE OF TRUTH = SharePoint list DMSConfig (ConfigKey=search-filters), truy cập qua
+//   GET/PUT /api/admin/config/search-filters.
+// localStorage (key dms.search.filterConfig.v1) CHỈ là CACHE client (render tức thì khi chờ API),
+//   KHÔNG còn là nguồn chân lý.
 //
 // Key filter = key nội bộ camelCase, KHỚP FACET_DEFS (searchTypes.ts) và field IDocument
 // (vd 'donViPhatHanh'). KHÔNG đổi key nội bộ; chỉ label hiển thị đổi (Đơn vị soạn thảo).
-// KHÔNG đụng SharePoint column / API / metadata schema.
+// KHÔNG đụng metadata column / document schema.
 
 export interface FilterConfig {
   key: string;
@@ -17,7 +20,12 @@ export interface FilterConfig {
   multiSelect: boolean;
 }
 
+/** Key cache localStorage (CHỈ cache, không phải source of truth). */
 export const FILTER_CONFIG_STORAGE_KEY = 'dms.search.filterConfig.v1';
+/** ConfigKey trong SharePoint list DMSConfig. */
+export const SEARCH_FILTERS_CONFIG_KEY = 'search-filters';
+/** Endpoint API (source of truth là SharePoint). */
+export const SEARCH_FILTERS_API_URL = '/api/admin/config/search-filters';
 /** Event phát khi config đổi (đồng bộ trong cùng tab; cross-tab dùng 'storage'). */
 export const FILTER_CONFIG_EVENT = 'dms:filterConfigChanged';
 
@@ -77,7 +85,7 @@ export function mergeWithDefaults(stored: unknown): FilterConfig[] {
   return merged.map((f, i) => ({ ...f, order: i + 1 }));
 }
 
-/** Đọc config từ localStorage (SSR-safe → trả default khi không có window). */
+/** Đọc config từ CACHE localStorage (SSR-safe → trả default khi không có window/cache). */
 export function loadFilterConfig(): FilterConfig[] {
   if (typeof window === 'undefined') {
     return cloneDefaults();
@@ -90,7 +98,7 @@ export function loadFilterConfig(): FilterConfig[] {
   }
 }
 
-/** Ghi config vào localStorage + phát event đồng bộ. */
+/** Ghi config vào CACHE localStorage + phát event đồng bộ (không phải lưu chính thức). */
 export function saveFilterConfig(config: FilterConfig[]): void {
   if (typeof window === 'undefined') {
     return;
@@ -131,4 +139,60 @@ export function subscribeFilterConfig(cb: () => void): () => void {
     window.removeEventListener('storage', onStorage);
     window.removeEventListener(FILTER_CONFIG_EVENT, onCustom);
   };
+}
+
+// ── API (source of truth = SharePoint) ─────────────────────────────────────────
+
+export interface FilterConfigResult {
+  ok: boolean;
+  config: FilterConfig[];
+  /** 'sharepoint' nếu đọc/ghi được; 'default' nếu chưa có cấu hình; 'cache' nếu API lỗi (dùng cache/default). */
+  source: 'sharepoint' | 'default' | 'cache';
+  error?: string;
+}
+
+/**
+ * Đọc config từ API (SharePoint). Khi có cấu hình → cập nhật cache + trả về.
+ * Khi API lỗi/chưa có cấu hình → fallback cache (rồi default), KHÔNG vỡ trang.
+ */
+export async function fetchFilterConfig(): Promise<FilterConfigResult> {
+  try {
+    const res = await fetch(SEARCH_FILTERS_API_URL, { credentials: 'same-origin', cache: 'no-store' });
+    const json = (await res.json()) as { ok: boolean; config: FilterConfig[] | null; source?: string; error?: string };
+    if (res.ok && json.ok && Array.isArray(json.config)) {
+      const merged = mergeWithDefaults(json.config);
+      saveFilterConfig(merged); // cập nhật cache
+      return { ok: true, config: merged, source: 'sharepoint' };
+    }
+    if (res.ok && json.ok && json.config === null) {
+      // Chưa có cấu hình trên SharePoint → default (giữ cache hiện có nếu muốn, nhưng default là chuẩn).
+      return { ok: true, config: loadFilterConfig(), source: 'default' };
+    }
+    return { ok: false, config: loadFilterConfig(), source: 'cache', error: json.error ?? `HTTP ${res.status}` };
+  } catch (e) {
+    return { ok: false, config: loadFilterConfig(), source: 'cache', error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/**
+ * Lưu config qua API (chỉ admin/canWrite). Thành công → cập nhật cache. Lỗi → trả ok:false + message.
+ */
+export async function putFilterConfig(config: FilterConfig[]): Promise<FilterConfigResult> {
+  try {
+    const res = await fetch(SEARCH_FILTERS_API_URL, {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config),
+    });
+    const json = (await res.json().catch(() => ({}))) as { ok?: boolean; config?: FilterConfig[]; error?: string };
+    if (res.ok && json.ok && Array.isArray(json.config)) {
+      const merged = mergeWithDefaults(json.config);
+      saveFilterConfig(merged);
+      return { ok: true, config: merged, source: 'sharepoint' };
+    }
+    return { ok: false, config, source: 'cache', error: json.error ?? `HTTP ${res.status}` };
+  } catch (e) {
+    return { ok: false, config, source: 'cache', error: e instanceof Error ? e.message : String(e) };
+  }
 }

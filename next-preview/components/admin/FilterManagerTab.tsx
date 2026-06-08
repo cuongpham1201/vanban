@@ -9,20 +9,49 @@ import {
   loadFilterConfig,
   saveFilterConfig,
   resetFilterConfig,
+  fetchFilterConfig,
+  putFilterConfig,
 } from '@/lib/dms/filterConfig';
 
-// Tab 1 — Bộ lọc tìm kiếm. Admin quyết định filter nào hiện ở Search Center, thứ tự,
-// mặc định mở, multi-select. Persist vào localStorage (shared store filterConfig) →
-// Search Center đọc cùng config. CHƯA SharePoint/API write.
+type SaveState = { kind: 'idle' | 'saving' | 'saved' | 'error'; msg?: string };
+
+// Tab 1 — Bộ lọc tìm kiếm. Source of truth = SharePoint (qua API). localStorage chỉ là cache.
+// Đọc API khi mount; mỗi thay đổi (toggle/reorder) PUT lên SharePoint. Chỉ admin/canWrite mới lưu được.
 export default function FilterManagerTab(): React.ReactElement {
-  const [filters, setFilters] = React.useState<FilterConfig[]>(() => loadFilterConfig());
+  const [filters, setFilters] = React.useState<FilterConfig[]>(() => loadFilterConfig()); // cache → render tức thì
   const [dragIdx, setDragIdx] = React.useState<number | null>(null);
   const [overIdx, setOverIdx] = React.useState<number | null>(null);
+  const [save, setSave] = React.useState<SaveState>({ kind: 'idle' });
+  const [canWrite, setCanWrite] = React.useState<boolean | null>(null);
 
-  // Mọi thay đổi (toggle/reorder) → cập nhật state + persist ngay.
-  const commit = (next: FilterConfig[]): void => {
+  // Mount: đọc cấu hình thật từ SharePoint + trạng thái quyền ghi.
+  React.useEffect(() => {
+    let alive = true;
+    void fetchFilterConfig().then((r) => {
+      if (alive && r.config) setFilters(r.config);
+    });
+    fetch('/api/dms/write-status', { credentials: 'same-origin' })
+      .then((res) => res.json())
+      .then((j) => alive && setCanWrite(!!j?.canWrite))
+      .catch(() => alive && setCanWrite(false));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // Cập nhật state + cache + PUT SharePoint.
+  const persist = (next: FilterConfig[]): void => {
     setFilters(next);
-    saveFilterConfig(next);
+    saveFilterConfig(next); // cache lạc quan
+    setSave({ kind: 'saving' });
+    void putFilterConfig(next).then((r) => {
+      if (r.ok) {
+        setSave({ kind: 'saved' });
+        window.setTimeout(() => setSave((s) => (s.kind === 'saved' ? { kind: 'idle' } : s)), 2500);
+      } else {
+        setSave({ kind: 'error', msg: r.error });
+      }
+    });
   };
 
   const reorder = (from: number, to: number): void => {
@@ -32,38 +61,55 @@ export default function FilterManagerTab(): React.ReactElement {
     const next = [...filters];
     const [moved] = next.splice(from, 1);
     next.splice(to, 0, moved);
-    commit(next.map((f, i) => ({ ...f, order: i + 1 })));
+    persist(next.map((f, i) => ({ ...f, order: i + 1 })));
   };
 
   const patch = (key: string, p: Partial<FilterConfig>): void => {
-    commit(filters.map((f) => (f.key === key ? { ...f, ...p } : f)));
+    persist(filters.map((f) => (f.key === key ? { ...f, ...p } : f)));
   };
 
-  // Khôi phục mặc định: clear localStorage + reset state về default.
+  // Khôi phục mặc định: clear cache + lưu default lên SharePoint (chia sẻ toàn hệ thống).
   const restoreDefault = (): void => {
-    resetFilterConfig();
-    setFilters(DEFAULT_FILTER_CONFIG.map((d) => ({ ...d })));
+    const def = DEFAULT_FILTER_CONFIG.map((d) => ({ ...d }));
+    resetFilterConfig(); // clear cache
+    persist(def);
   };
 
+  const readOnly = canWrite === false;
   const visibleFilters = filters.filter((f) => f.visible);
+
+  const saveLabel =
+    save.kind === 'saving' ? 'Đang lưu…' :
+    save.kind === 'saved' ? 'Đã lưu vào SharePoint' :
+    save.kind === 'error' ? `Lưu lỗi: ${save.msg ?? ''}` : '';
 
   return (
     <div className="apane on">
       <div className="adm-head">
         <div>
           <h1>Bộ lọc tìm kiếm</h1>
-          <div className="t-sm mut">Quyết định bộ lọc nào hiển thị ở Search Center · kéo-thả để sắp thứ tự</div>
+          <div className="t-sm mut">Quyết định bộ lọc nào hiển thị ở Search Center · kéo-thả để sắp thứ tự · lưu chung toàn hệ thống (SharePoint)</div>
         </div>
-        <button type="button" className="btn btn-ghost" onClick={restoreDefault}>
+        <button type="button" className="btn btn-ghost" onClick={restoreDefault} disabled={readOnly}>
           Khôi phục mặc định
         </button>
       </div>
+
+      {readOnly && (
+        <div className="rp-warn" style={{ marginBottom: 14, padding: '10px 14px', background: 'var(--warning-100)', border: '1px solid var(--warning-500)', borderRadius: 'var(--r-md)' }}>
+          <span className="t-sm">Bạn không có quyền chỉnh sửa cấu hình (chỉ admin/canWrite). Chế độ chỉ xem.</span>
+        </div>
+      )}
 
       <div className="adm-panelcard">
         <div className="adm-toolbar">
           <span className="t-xs mut">{filters.length} bộ lọc · {visibleFilters.length} đang hiển thị</span>
           <div style={{ flex: 1 }} />
-          <span className="t-2xs mut">Thay đổi áp dụng ngay cho Search Center</span>
+          {saveLabel && (
+            <span className="t-2xs" style={{ fontWeight: 600, color: save.kind === 'error' ? 'var(--danger-700)' : save.kind === 'saved' ? 'var(--success-700)' : 'var(--gray-500)' }}>
+              {saveLabel}
+            </span>
+          )}
         </div>
         <table className="tbl">
           <thead>
@@ -81,7 +127,7 @@ export default function FilterManagerTab(): React.ReactElement {
             {filters.map((f, idx) => (
               <tr
                 key={f.key}
-                draggable
+                draggable={!readOnly}
                 onDragStart={() => setDragIdx(idx)}
                 onDragOver={(e) => {
                   e.preventDefault();
@@ -104,13 +150,13 @@ export default function FilterManagerTab(): React.ReactElement {
                   <div style={{ fontWeight: 600 }}>{f.label}</div>
                   <div className="t-2xs mut t-mono">{f.key}</div>
                 </td>
-                <td><AdminSwitch on={f.visible} label={`Hiển thị ${f.label}`} onChange={(v) => patch(f.key, { visible: v })} /></td>
-                <td><AdminSwitch on={f.defaultExpanded} disabled={!f.visible} label={`Mặc định mở ${f.label}`} onChange={(v) => patch(f.key, { defaultExpanded: v })} /></td>
-                <td><AdminSwitch on={f.multiSelect} label={`Chọn nhiều ${f.label}`} onChange={(v) => patch(f.key, { multiSelect: v })} /></td>
+                <td><AdminSwitch on={f.visible} disabled={readOnly} label={`Hiển thị ${f.label}`} onChange={(v) => patch(f.key, { visible: v })} /></td>
+                <td><AdminSwitch on={f.defaultExpanded} disabled={readOnly || !f.visible} label={`Mặc định mở ${f.label}`} onChange={(v) => patch(f.key, { defaultExpanded: v })} /></td>
+                <td><AdminSwitch on={f.multiSelect} disabled={readOnly} label={`Chọn nhiều ${f.label}`} onChange={(v) => patch(f.key, { multiSelect: v })} /></td>
                 <td style={{ textAlign: 'right' }}>
                   <span className="adm-act">
-                    <button type="button" className="adm-iconbtn" disabled={idx === 0} title="Lên" onClick={() => reorder(idx, idx - 1)} aria-label="Di chuyển lên">▲</button>
-                    <button type="button" className="adm-iconbtn" disabled={idx === filters.length - 1} title="Xuống" onClick={() => reorder(idx, idx + 1)} aria-label="Di chuyển xuống">▼</button>
+                    <button type="button" className="adm-iconbtn" disabled={readOnly || idx === 0} title="Lên" onClick={() => reorder(idx, idx - 1)} aria-label="Di chuyển lên">▲</button>
+                    <button type="button" className="adm-iconbtn" disabled={readOnly || idx === filters.length - 1} title="Xuống" onClick={() => reorder(idx, idx + 1)} aria-label="Di chuyển xuống">▼</button>
                   </span>
                 </td>
               </tr>

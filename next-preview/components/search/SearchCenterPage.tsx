@@ -9,7 +9,7 @@ import {
   FACET_DEFS, FacetDef, matchesKeyword, toSearchDoc, SearchDoc,
   SortKey, SORT_OPTIONS, DEFAULT_SORT, sortDocuments,
 } from './searchTypes';
-import { loadFilterConfig, subscribeFilterConfig } from '@/lib/dms/filterConfig';
+import { loadFilterConfig, subscribeFilterConfig, fetchFilterConfig } from '@/lib/dms/filterConfig';
 import SearchSubBar, { ViewMode } from './SearchSubBar';
 import SearchBar from './SearchBar';
 import ActiveChips, { ActiveChip } from './ActiveChips';
@@ -48,9 +48,19 @@ export default function SearchCenterPage(): React.ReactElement {
   const [raw, setRaw] = React.useState<IDocument[] | null>(_docsCache ?? null);
   const [error, setError] = React.useState<string | undefined>();
   const [query, setQuery] = React.useState(searchParams.get('q') ?? '');
-  // Cấu hình filter dùng chung với /admin (localStorage). Chỉ render filter visible=true, theo order.
+  // Cấu hình filter dùng chung với /admin. Source of truth = SharePoint (API); cache localStorage
+  // dùng để render tức thì; nếu API lỗi → fallback cache/default. Chỉ render filter visible=true, theo order.
   const [filterConfig, setFilterConfig] = React.useState(() => loadFilterConfig());
   React.useEffect(() => subscribeFilterConfig(() => setFilterConfig(loadFilterConfig())), []);
+  React.useEffect(() => {
+    let alive = true;
+    void fetchFilterConfig().then((r) => {
+      if (alive && r.config) setFilterConfig(r.config);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const [selected, setSelected] = React.useState<Record<string, Set<string>>>(() => {
     const visibleSet = new Set(loadFilterConfig().filter((c) => c.visible).map((c) => c.key));
