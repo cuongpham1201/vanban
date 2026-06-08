@@ -7,7 +7,7 @@ import { getCachedDocuments, invalidateDocumentsCache } from '@/lib/dms/document
 import { MockDmsService } from '@dms/services/MockDmsService';
 import { IDocument } from '@dms/models/IDocument';
 import { assertCanWriteDms, DmsWriteError } from '@/lib/dms/writeGuard';
-import { getAppOnlyGraphToken } from '@/lib/graph/appToken';
+import { getAppOnlyGraphToken, getAppOnlyGraphTokenReadOnly } from '@/lib/graph/appToken';
 import { SharePointDmsService } from '@/lib/dms/sharepointDmsService';
 
 export const dynamic = 'force-dynamic';
@@ -33,10 +33,11 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     if (IS_DEV && !session.accessToken) {
       documents = await new MockDmsService().getAllDocuments();
       source = 'mock-dev';
-    } else if (!session.accessToken) {
-      return NextResponse.json({ ok: false, error: 'Không lấy được access token Microsoft Graph.' }, { status: 401 });
     } else {
-      const cached = await getCachedDocuments(session.accessToken);
+      // #31G: web (Azure AD) dùng token delegated; phiên Teams SSO KHÔNG có session.accessToken →
+      // đọc bằng app-only read token (cache documents là org-wide, mọi user đã đăng nhập đều có quyền Read).
+      const accessToken = session.accessToken ?? (await getAppOnlyGraphTokenReadOnly());
+      const cached = await getCachedDocuments(accessToken);
       documents = cached.documents;
       source = cached.source;
     }

@@ -2,10 +2,6 @@ import type { NextAuthOptions, User } from 'next-auth';
 import AzureADProvider from 'next-auth/providers/azure-ad';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { verifyTeamsSsoToken } from '@/lib/teams/teamsSsoVerify';
-import { exchangeTeamsTokenForGraph } from '@/lib/teams/oboExchange';
-
-// #31 — user trả từ authorize của teams-sso (mang theo Graph token đã OBO sang jwt callback).
-interface TeamsAuthUser { id: string; email: string; name: string; gToken?: string; gRefresh?: string; gExp?: number; }
 
 // Delegated scopes — KHỚP với API permissions đã grant cho Entra app "Vanbandieuhanh-API":
 //   User.Read · Sites.Read.All · Files.Read.All  (+ offline_access để có refresh token).
@@ -116,8 +112,9 @@ function isInternalEmail(email: string | null | undefined): boolean {
   return (email ?? '').toLowerCase().trim().endsWith(ALLOWED_DOMAIN);
 }
 
-// #31 — Teams Tab SSO. authorize(): verify Teams JWT → OBO sang Graph token (DMS đọc cần token này).
-// Thất bại verify/OBO → null → client fallback (web login / mở trình duyệt). KHÔNG ảnh hưởng Azure AD/dev.
+// #31 — Teams Tab SSO. authorize(): CHỈ verify Teams JWT → trả identity nhẹ (id/email/name).
+// #31G: KHÔNG OBO, KHÔNG lưu Graph token vào NextAuth JWT (tránh cookie chunk .0..3 → decode fail → {}).
+//        DMS đọc/ghi SharePoint dùng app-only Graph token (không cần token delegated trong session).
 const teamsSsoProvider = CredentialsProvider({
   id: 'teams-sso',
   name: 'Teams SSO',
@@ -128,22 +125,10 @@ const teamsSsoProvider = CredentialsProvider({
     const verified = await verifyTeamsSsoToken(token);
     if (!verified.ok || !verified.user) {
       // eslint-disable-next-line no-console
-      console.warn('[auth][teams-sso] verify failed:', verified.error);
+      console.warn('[teams-sso] verify failed:', verified.error);
       return null;
     }
-    const obo = await exchangeTeamsTokenForGraph(token);
-    if (!obo.ok) {
-      // eslint-disable-next-line no-console
-      console.warn('[auth][teams-sso] OBO failed:', obo.error);
-      return null; // không có Graph token → DMS không đọc được → fallback
-    }
-    // eslint-disable-next-line no-console
-    console.info(`[auth][teams-sso] ok email=${verified.user.email}`);
-    const u: TeamsAuthUser = {
-      id: verified.user.oid, email: verified.user.email, name: verified.user.name,
-      gToken: obo.accessToken, gRefresh: obo.refreshToken, gExp: obo.expiresAt,
-    };
-    return u as unknown as User;
+    return { id: verified.user.oid, email: verified.user.email, name: verified.user.name } as User;
   },
 });
 
@@ -217,21 +202,22 @@ export const authOptions: NextAuthOptions = {
       }
       return true;
     },
-    async jwt({ token, account, user }) {
+    async jwt({ token, account }) {
       // Đăng nhập lần đầu — lưu token từ account.
       if (account) {
-        // Teams SSO: Graph token lấy từ OBO (đính kèm trong user). Refresh dùng refresh_token như Azure AD.
+        // #31G: Teams SSO — CHỈ giữ identity nhẹ (token.sub/email/name do NextAuth prefill từ user).
+        // KHÔNG nhồi Graph access/refresh token → JWT nhỏ → 1 cookie, không chunk → decode OK.
         if (account.provider === 'teams-sso') {
-          const tu = user as unknown as TeamsAuthUser | undefined;
           token.teams = true;
-          token.accessToken = tu?.gToken;
-          token.refreshToken = tu?.gRefresh;
-          token.expiresAt = tu?.gExp ?? Math.floor(Date.now() / 1000) + 3600;
           return token;
         }
         token.accessToken = account.access_token as string | undefined;
         token.refreshToken = account.refresh_token as string | undefined;
         token.expiresAt = (account.expires_at as number | undefined) ?? Math.floor(Date.now() / 1000) + 3600;
+        return token;
+      }
+      // #31G: phiên Teams — KHÔNG có Graph token/refresh trong session → bỏ qua refresh, giữ identity.
+      if (token.teams) {
         return token;
       }
       // Còn hạn (chừa 60s) → dùng tiếp.
@@ -242,8 +228,12 @@ export const authOptions: NextAuthOptions = {
       return (await refreshAccessToken(token)) as typeof token;
     },
     async session({ session, token }) {
-      session.accessToken = token.accessToken;
+      session.accessToken = token.accessToken; // undefined cho phiên Teams (đọc/ghi dùng app-only)
       session.error = token.error;
+      // #31G: đánh dấu phiên Teams để UI/route biết (KHÔNG yêu cầu session.accessToken cho Teams).
+      if (token.teams) {
+        session.teams = true;
+      }
       // Chuẩn hóa email về lowercase (so khớp domain nhất quán).
       if (session.user?.email) {
         session.user.email = session.user.email.toLowerCase().trim();

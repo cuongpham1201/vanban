@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
-import { getGraphAccessToken, AuthError } from '@/lib/auth/token';
+import { AuthError } from '@/lib/auth/token';
 import { GraphError } from '@/lib/graph/client';
 import { LibraryResolveError } from '@/lib/sharepoint/resolve';
-import { getCachedDocuments, getCacheMetrics } from '@/lib/dms/documentsCache';
+import { getCacheMetrics } from '@/lib/dms/documentsCache';
+import { getDocsForRequest } from '@/lib/dms/docsForRequest';
 import { IDocument } from '@dms/models/IDocument';
 
 export const dynamic = 'force-dynamic';
@@ -30,11 +31,11 @@ export async function GET(request: Request): Promise<NextResponse> {
 
   const t0 = performance.now();
   try {
-    const accessToken = await getGraphAccessToken();
-    const cached = await getCachedDocuments(accessToken, forceRefresh);
+    const result = await getDocsForRequest(forceRefresh); // Azure AD → token delegated; Teams SSO → app-only read
+    const cached = result.cached;
 
     // Filter in-memory (KHÔNG fetch lại Graph). Khi không có filter → trả nguyên (giữ UI hiện tại).
-    let docs = cached.documents;
+    let docs = result.documents;
     if (q) {
       docs = docs.filter((d) => matchesKeyword(d, q));
     }
@@ -52,18 +53,18 @@ export async function GET(request: Request): Promise<NextResponse> {
     }
 
     // eslint-disable-next-line no-console
-    console.log(`[PERF] api-documents-finish ${(performance.now() - t0).toFixed(0)}ms source=${cached.source} docs=${total}`);
+    console.log(`[PERF] api-documents-finish ${(performance.now() - t0).toFixed(0)}ms source=${result.source} docs=${total}`);
 
     return NextResponse.json({
       ok: true,
-      source: cached.source,
+      source: result.source,
       count: docs.length,
       total,
       ...(pageInfo ?? {}),
-      rawItemCount: cached.rawItemCount,
-      fileItemCount: cached.fileItemCount,
-      truncated: cached.truncated,
-      ...(debug
+      rawItemCount: cached?.rawItemCount,
+      fileItemCount: cached?.fileItemCount,
+      truncated: cached?.truncated ?? false,
+      ...(debug && cached
         ? { debug: { pages: cached.pages, stats: cached.stats, buildMs: Math.round(cached.buildMs), builtAt: cached.builtAt, cacheMetrics: getCacheMetrics() } }
         : {}),
       documents: docs,

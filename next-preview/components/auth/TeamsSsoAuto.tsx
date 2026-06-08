@@ -13,6 +13,22 @@ const SESSION_MAX_ATTEMPTS = 8;
 const SESSION_DELAY_MS = 500;
 const SS_DONE = 'bhl.teams.sso.done';
 
+// #31A — Resolve URL "Mở trên trình duyệt" AN TOÀN. callbackUrl của NextAuth có thể là ABSOLUTE
+// (vd https://vanban.biahalong.com/dashboard) HOẶC relative (/search). new URL(cb, origin):
+//   - cb absolute → trả nguyên (KHÔNG ghép origin → tránh https://...https://... ERR_NAME_NOT_RESOLVED).
+//   - cb relative → ghép đúng với origin.
+function resolveExternalUrl(callbackUrl: string): string {
+  if (typeof window === 'undefined') return callbackUrl;
+  try {
+    const url = new URL(callbackUrl, window.location.origin).href;
+    // eslint-disable-next-line no-console
+    console.info('[Teams] openExternal final URL =', url);
+    return url;
+  } catch {
+    return window.location.origin;
+  }
+}
+
 export default function TeamsSsoAuto({ callbackUrl }: { callbackUrl: string }): React.ReactElement | null {
   const [phase, setPhase] = React.useState<Phase>('idle');
   const [errorDetail, setErrorDetail] = React.useState<string | null>(null);
@@ -65,7 +81,7 @@ export default function TeamsSsoAuto({ callbackUrl }: { callbackUrl: string }): 
       const ok = await waitForSession(isCancelled);
       if (cancelled) return;
       if (!ok) {
-        setErrorDetail('Đã xác thực Teams nhưng chưa tạo được phiên (cookie iframe?). Hãy mở trên trình duyệt.');
+        setErrorDetail('Đã xác thực Teams nhưng chưa tạo được phiên. Hãy mở trên trình duyệt.');
         setPhase('failed');
         return;
       }
@@ -115,7 +131,7 @@ export default function TeamsSsoAuto({ callbackUrl }: { callbackUrl: string }): 
               style={{ width: '100%', marginBottom: 10, padding: '11px 16px', fontSize: 14, fontWeight: 600, background: '#fff', color: '#0038a8', border: '1.5px solid #0038a8', borderRadius: 10, cursor: 'pointer' }}>
               Đăng nhập với Microsoft 365
             </button>
-            <button type="button" onClick={() => void openExternal(typeof window !== 'undefined' ? window.location.origin + callbackUrl : callbackUrl)}
+            <button type="button" onClick={() => void openExternal(resolveExternalUrl(callbackUrl))}
               style={{ width: '100%', padding: '11px 16px', fontSize: 14, fontWeight: 600, background: '#fff', color: '#0e1f4d', border: '1.5px solid #0e1f4d', borderRadius: 10, cursor: 'pointer' }}>
               Mở trên trình duyệt
             </button>
