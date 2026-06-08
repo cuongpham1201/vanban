@@ -166,14 +166,19 @@
 .appbar-menu svg { width: 20px; height: 20px; }
 .sidenav-backdrop { display: none; }
 
-@media (max-width: 900px) {
+/* #36B: laptop 13"–14" (≤1536, gồm 1366/1440/1536) → sidebar ẩn mặc định, mở dạng overlay drawer
+   (không push content). Search Center là ưu tiên #1 → dùng TOÀN BỘ chiều ngang. */
+@media (max-width: 1536px) {
   .appbar-menu { display: grid; }
-  .appbar .gsearch { display: none; } /* nhường chỗ; dùng /search để tìm */
-  /* Sidebar thành drawer trượt từ trái, ẩn mặc định. */
+  /* Sidebar thành drawer trượt từ trái, ẩn mặc định — content dùng TOÀN BỘ chiều ngang. */
   .sidenav { position: fixed; top: 52px; bottom: 0; left: 0; z-index: 40; width: 264px;
     transform: translateX(-100%); transition: transform .2s ease; box-shadow: var(--sh-2, 4px 0 24px -8px rgba(0,0,0,.3)); }
   .sidenav.open { transform: translateX(0); }
   .sidenav-backdrop { display: block; position: fixed; inset: 52px 0 0 0; background: rgba(15,31,77,.4); z-index: 39; }
+}
+/* Ẩn ô search ở appbar khi quá hẹp (<900) — laptop 900–1279 vẫn còn chỗ nên giữ. */
+@media (max-width: 899px) {
+  .appbar .gsearch { display: none; }
 }
 
 /* UTIL */

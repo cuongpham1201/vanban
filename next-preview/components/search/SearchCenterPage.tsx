@@ -366,7 +366,7 @@ export default function SearchCenterPage(): React.ReactElement {
         </div>
       )}
 
-      <div className="sc-layout">
+      <div className={`sc-layout${effectiveMode === '3col' ? ' sc-3col' : ''}`}>
         {effectiveMode === '3col' && (
           <FilterPanel groups={facetGroups} selected={selected} onToggle={toggleFacet} onClearAll={() => setSelected({})} />
         )}
