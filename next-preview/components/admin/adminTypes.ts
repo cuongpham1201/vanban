@@ -2,15 +2,8 @@
 // KHÔNG kết nối SharePoint, KHÔNG gọi API write. Seed lấy từ Metadata V2 (dms/models/IDocument.ts)
 // + danh mục thực tế (dms/utils/documentTypeGroups.ts, Admin.html units).
 
-/** Tab 1 — cấu hình bộ lọc hiển thị ở Search Center. */
-export interface FilterConfig {
-  key: string;
-  label: string;
-  visible: boolean;
-  defaultExpanded: boolean;
-  order: number;
-  multiSelect: boolean;
-}
+// Tab 1 (Bộ lọc tìm kiếm): FilterConfig + default + store đã chuyển sang shared module
+// '@/lib/dms/filterConfig' (dùng chung với Search Center). Xem FilterManagerTab.
 
 /** Tab 2 — cấu hình từng trường Metadata V2. */
 export type MetaFieldType = 'Văn bản' | 'Văn bản dài' | 'Chọn' | 'Ngày' | 'Số' | 'Có/Không' | 'Nhiều';
@@ -47,22 +40,6 @@ export interface CatalogDef {
   hasCode: boolean;
   items: CatalogItem[];
 }
-
-// ── Tab 1 seed — đúng thứ tự yêu cầu, khởi tạo từ Metadata V2 ───────────────────
-export const SEED_FILTERS: FilterConfig[] = [
-  { key: 'NhomTaiLieu', label: 'Nhóm tài liệu', visible: true, defaultExpanded: true, order: 1, multiSelect: true },
-  { key: 'LoaiTaiLieu', label: 'Loại tài liệu', visible: true, defaultExpanded: true, order: 2, multiSelect: true },
-  { key: 'LoaiVanBanPhapLy', label: 'Loại VB pháp lý', visible: true, defaultExpanded: false, order: 3, multiSelect: true },
-  { key: 'ChuDeNghiepVu', label: 'Chủ đề nghiệp vụ', visible: true, defaultExpanded: false, order: 4, multiSelect: true },
-  { key: 'DonViPhatHanh', label: 'Đơn vị soạn thảo', visible: true, defaultExpanded: false, order: 5, multiSelect: true },
-  { key: 'DonViSoHuu', label: 'Đơn vị sở hữu', visible: false, defaultExpanded: false, order: 6, multiSelect: true },
-  { key: 'NamBanHanh', label: 'Năm ban hành', visible: true, defaultExpanded: true, order: 7, multiSelect: false },
-  { key: 'TrangThai', label: 'Trạng thái', visible: true, defaultExpanded: true, order: 8, multiSelect: true },
-  { key: 'MucDoBaoMat', label: 'Mức độ bảo mật', visible: true, defaultExpanded: false, order: 9, multiSelect: true },
-  { key: 'MetadataConfidence', label: 'Độ tin cậy metadata', visible: false, defaultExpanded: false, order: 10, multiSelect: true },
-  { key: 'NguonMetadata', label: 'Nguồn metadata', visible: false, defaultExpanded: false, order: 11, multiSelect: true },
-  { key: 'HasEditableSource', label: 'Có bản mềm (DOCX)', visible: false, defaultExpanded: false, order: 12, multiSelect: false },
-];
 
 // ── Tab 2 seed — toàn bộ trường Metadata V2 ────────────────────────────────────
 export const SEED_META: MetaFieldConfig[] = [

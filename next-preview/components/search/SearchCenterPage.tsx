@@ -6,9 +6,10 @@ import Icon from '@/components/shell/Icon';
 import { IDocument } from '@dms/models/IDocument';
 import { isExpired } from '@dms/utils/standardization';
 import {
-  FACET_DEFS, matchesKeyword, toSearchDoc, SearchDoc,
+  FACET_DEFS, FacetDef, matchesKeyword, toSearchDoc, SearchDoc,
   SortKey, SORT_OPTIONS, DEFAULT_SORT, sortDocuments,
 } from './searchTypes';
+import { loadFilterConfig, subscribeFilterConfig } from '@/lib/dms/filterConfig';
 import SearchSubBar, { ViewMode } from './SearchSubBar';
 import SearchBar from './SearchBar';
 import ActiveChips, { ActiveChip } from './ActiveChips';
@@ -47,9 +48,15 @@ export default function SearchCenterPage(): React.ReactElement {
   const [raw, setRaw] = React.useState<IDocument[] | null>(_docsCache ?? null);
   const [error, setError] = React.useState<string | undefined>();
   const [query, setQuery] = React.useState(searchParams.get('q') ?? '');
+  // Cấu hình filter dùng chung với /admin (localStorage). Chỉ render filter visible=true, theo order.
+  const [filterConfig, setFilterConfig] = React.useState(() => loadFilterConfig());
+  React.useEffect(() => subscribeFilterConfig(() => setFilterConfig(loadFilterConfig())), []);
+
   const [selected, setSelected] = React.useState<Record<string, Set<string>>>(() => {
+    const visibleSet = new Set(loadFilterConfig().filter((c) => c.visible).map((c) => c.key));
     const init: Record<string, Set<string>> = {};
     for (const def of FACET_DEFS) {
+      if (!visibleSet.has(def.key)) continue; // bỏ qua filter bị ẩn (kể cả nếu URL có sẵn value)
       const vals = searchParams.getAll(def.key);
       if (vals.length) init[def.key] = new Set(vals);
     }
@@ -167,23 +174,55 @@ export default function SearchCenterPage(): React.ReactElement {
   const showExpired =
     (selected.trangThai?.has(EXPIRED_LABEL) ?? false) || (selected.nhomTaiLieu?.has(EXPIRED_LABEL) ?? false);
 
-  // Helper: lọc theo facet đã chọn, có thể bỏ qua 1 facet (cho contextual count).
+  // Filter hiển thị + thứ tự theo cấu hình Admin: chỉ visible=true, sort theo order,
+  // label + trạng thái mở (open) lấy từ config. Filter bị ẩn KHÔNG render & KHÔNG lọc kết quả.
+  const orderedDefs = React.useMemo<FacetDef[]>(() => {
+    const byKey = new Map(FACET_DEFS.map((d) => [d.key, d]));
+    return filterConfig
+      .filter((c) => c.visible)
+      .slice()
+      .sort((a, b) => a.order - b.order)
+      .map((c) => {
+        const def = byKey.get(c.key);
+        return def ? { ...def, label: c.label, open: c.defaultExpanded } : null;
+      })
+      .filter((x): x is FacetDef => x !== null);
+  }, [filterConfig]);
+
+  const visibleKeys = React.useMemo(() => new Set(orderedDefs.map((d) => d.key)), [orderedDefs]);
+
+  // Khi config đổi (vd Admin ẩn 1 filter): clear selected value của filter không còn hiển thị.
+  React.useEffect(() => {
+    setSelected((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const k of Object.keys(next)) {
+        if (!visibleKeys.has(k)) {
+          delete next[k];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [visibleKeys]);
+
+  // Helper: lọc theo facet đã chọn (chỉ facet đang hiển thị), có thể bỏ qua 1 facet (cho contextual count).
   const applyFacets = React.useCallback(
     (docs: IDocument[], exceptKey?: string): IDocument[] =>
       docs.filter((d) =>
-        FACET_DEFS.every((def) => {
+        orderedDefs.every((def) => {
           if (def.key === exceptKey) return true;
           const sel = selected[def.key];
           return !sel || sel.size === 0 || sel.has(def.get(d));
         })
       ),
-    [selected]
+    [selected, orderedDefs]
   );
 
   // BUG#10/#15: CONTEXTUAL facet count — count trên tập đã áp dụng MỌI filter khác (trừ facet đang tính).
   const facetGroups: FacetGroup[] = React.useMemo(
     () =>
-      FACET_DEFS.map((def) => {
+      orderedDefs.map((def) => {
         const base = applyFacets(afterKeyword, def.key);
         const counts = new Map<string, number>();
         for (const d of base) {
@@ -195,7 +234,7 @@ export default function SearchCenterPage(): React.ReactElement {
           .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value, 'vi'));
         return { key: def.key, label: def.label, open: def.open, items };
       }),
-    [afterKeyword, applyFacets]
+    [afterKeyword, applyFacets, orderedDefs]
   );
 
   const filtered = React.useMemo(() => {
@@ -212,8 +251,11 @@ export default function SearchCenterPage(): React.ReactElement {
   const effectiveId = selectedDoc?.id ?? null;
 
   const chips: ActiveChip[] = React.useMemo(
-    () => Object.entries(selected).flatMap(([key, set]) => Array.from(set).map((value) => ({ key, value }))),
-    [selected]
+    () =>
+      Object.entries(selected)
+        .filter(([key]) => visibleKeys.has(key)) // không hiện chip của filter bị ẩn
+        .flatMap(([key, set]) => Array.from(set).map((value) => ({ key, value }))),
+    [selected, visibleKeys]
   );
 
   const toggleFacet = (key: string, value: string): void => {
@@ -351,7 +393,7 @@ export default function SearchCenterPage(): React.ReactElement {
           <span className="t-xs mut" style={{ fontWeight: 600 }}>
             <Icon name="filter" /> Lọc nhanh:
           </span>
-          {FACET_DEFS.slice(0, 6).map((def) => {
+          {orderedDefs.slice(0, 6).map((def) => {
             const group = facetGroups.find((g) => g.key === def.key);
             const cur = selected[def.key] ? Array.from(selected[def.key])[0] ?? '' : '';
             return (

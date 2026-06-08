@@ -3,31 +3,46 @@
 import * as React from 'react';
 import Icon from '@/components/shell/Icon';
 import AdminSwitch from './AdminSwitch';
-import { FilterConfig, SEED_FILTERS } from './adminTypes';
+import {
+  FilterConfig,
+  DEFAULT_FILTER_CONFIG,
+  loadFilterConfig,
+  saveFilterConfig,
+  resetFilterConfig,
+} from '@/lib/dms/filterConfig';
 
-// Tab 1 — Bộ lọc tìm kiếm. Admin quyết định filter nào hiện ở Search Center,
-// thứ tự, mặc định mở, multi-select. MOCK local state (chưa lưu SharePoint).
+// Tab 1 — Bộ lọc tìm kiếm. Admin quyết định filter nào hiện ở Search Center, thứ tự,
+// mặc định mở, multi-select. Persist vào localStorage (shared store filterConfig) →
+// Search Center đọc cùng config. CHƯA SharePoint/API write.
 export default function FilterManagerTab(): React.ReactElement {
-  const [filters, setFilters] = React.useState<FilterConfig[]>(() =>
-    [...SEED_FILTERS].sort((a, b) => a.order - b.order)
-  );
+  const [filters, setFilters] = React.useState<FilterConfig[]>(() => loadFilterConfig());
   const [dragIdx, setDragIdx] = React.useState<number | null>(null);
   const [overIdx, setOverIdx] = React.useState<number | null>(null);
+
+  // Mọi thay đổi (toggle/reorder) → cập nhật state + persist ngay.
+  const commit = (next: FilterConfig[]): void => {
+    setFilters(next);
+    saveFilterConfig(next);
+  };
 
   const reorder = (from: number, to: number): void => {
     if (from === to || from < 0 || to < 0 || from >= filters.length || to >= filters.length) {
       return;
     }
-    setFilters((prev) => {
-      const next = [...prev];
-      const [moved] = next.splice(from, 1);
-      next.splice(to, 0, moved);
-      return next.map((f, i) => ({ ...f, order: i + 1 }));
-    });
+    const next = [...filters];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    commit(next.map((f, i) => ({ ...f, order: i + 1 })));
   };
 
   const patch = (key: string, p: Partial<FilterConfig>): void => {
-    setFilters((prev) => prev.map((f) => (f.key === key ? { ...f, ...p } : f)));
+    commit(filters.map((f) => (f.key === key ? { ...f, ...p } : f)));
+  };
+
+  // Khôi phục mặc định: clear localStorage + reset state về default.
+  const restoreDefault = (): void => {
+    resetFilterConfig();
+    setFilters(DEFAULT_FILTER_CONFIG.map((d) => ({ ...d })));
   };
 
   const visibleFilters = filters.filter((f) => f.visible);
@@ -39,7 +54,7 @@ export default function FilterManagerTab(): React.ReactElement {
           <h1>Bộ lọc tìm kiếm</h1>
           <div className="t-sm mut">Quyết định bộ lọc nào hiển thị ở Search Center · kéo-thả để sắp thứ tự</div>
         </div>
-        <button type="button" className="btn btn-ghost" onClick={() => setFilters([...SEED_FILTERS].sort((a, b) => a.order - b.order))}>
+        <button type="button" className="btn btn-ghost" onClick={restoreDefault}>
           Khôi phục mặc định
         </button>
       </div>
@@ -47,6 +62,8 @@ export default function FilterManagerTab(): React.ReactElement {
       <div className="adm-panelcard">
         <div className="adm-toolbar">
           <span className="t-xs mut">{filters.length} bộ lọc · {visibleFilters.length} đang hiển thị</span>
+          <div style={{ flex: 1 }} />
+          <span className="t-2xs mut">Thay đổi áp dụng ngay cho Search Center</span>
         </div>
         <table className="tbl">
           <thead>
