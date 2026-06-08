@@ -10,19 +10,26 @@ export default function ConfirmStep({
   oldDoc,
   newDoc,
   done,
+  real = false,
+  canWrite = false,
 }: {
   oldDoc: SearchDoc;
   newDoc: SearchDoc;
   done: boolean;
+  real?: boolean;
+  canWrite?: boolean;
 }): React.ReactElement {
   if (done) {
     return (
       <div className="rp-success">
         <div className="rp-success-ic"><Icon name="check" size={30} /></div>
-        <div className="t-h3" style={{ margin: '12px 0 6px' }}>Đã hoàn tất (bản xem trước)</div>
+        <div className="t-h3" style={{ margin: '12px 0 6px' }}>{real ? 'Đã ghi thay thế thành công' : 'Đã hoàn tất (bản xem trước)'}</div>
         <div className="t-sm mut" style={{ maxWidth: 460 }}>
-          Quan hệ thay thế <b>{newDoc.num}</b> → <b>{oldDoc.num}</b> đã được dựng trên giao diện.
-          Chưa ghi xuống SharePoint — chức năng ghi dữ liệu sẽ thực hiện ở Phase Write.
+          {real ? (
+            <>Đã ghi xuống SharePoint: <b>{newDoc.num}</b> thay thế <b>{oldDoc.num}</b>; văn bản cũ chuyển <b>“Hết hiệu lực”</b>.</>
+          ) : (
+            <>Quan hệ thay thế <b>{newDoc.num}</b> → <b>{oldDoc.num}</b> đã dựng trên giao diện. Chưa ghi xuống SharePoint (cần quyền ghi).</>
+          )}
         </div>
       </div>
     );
@@ -72,12 +79,15 @@ export default function ConfirmStep({
         </div>
       </div>
 
-      {/* Cảnh báo / thông báo UI preview */}
+      {/* Cảnh báo: ghi thật vs xem trước */}
       <div className="rp-warn">
         <Icon name="help" size={18} />
         <div>
-          <b>Đây là UI preview.</b> Quan hệ thay thế chưa được ghi xuống SharePoint.
-          Chức năng ghi dữ liệu sẽ thực hiện ở Phase Write.
+          {canWrite ? (
+            <><b>Sẽ ghi xuống SharePoint.</b> Bản mới nhận <code>VanBanThayThe</code>, bản cũ chuyển “Hết hiệu lực” + ngày hết hiệu lực. (Reverse-link chưa ghi — cần field V3.)</>
+          ) : (
+            <><b>Đây là UI preview.</b> Bạn không có quyền ghi (DMS_WRITE) — quan hệ thay thế chưa ghi xuống SharePoint.</>
+          )}
         </div>
       </div>
     </div>

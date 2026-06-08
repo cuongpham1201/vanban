@@ -27,6 +27,42 @@ export default function ReplacePage(): React.ReactElement {
   const [oldDoc, setOldDoc] = React.useState<SearchDoc | null>(null);
   const [newDoc, setNewDoc] = React.useState<SearchDoc | null>(null);
   const [done, setDone] = React.useState(false);
+  const [canWrite, setCanWrite] = React.useState(false);
+  const [submitting, setSubmitting] = React.useState(false);
+  const [replaceError, setReplaceError] = React.useState<string | null>(null);
+  const [replacedReal, setReplacedReal] = React.useState(false);
+
+  React.useEffect(() => {
+    let alive = true;
+    fetch('/api/dms/write-status', { credentials: 'same-origin' })
+      .then((r) => r.json())
+      .then((j) => alive && setCanWrite(!!j?.canWrite))
+      .catch(() => undefined);
+    return () => { alive = false; };
+  }, []);
+
+  // #25 Write: ghi thật nếu canWrite + id số; ngược lại giữ xem trước (UI only).
+  const realWritable = canWrite && !!oldDoc && !!newDoc && /^\d+$/.test(oldDoc.id) && /^\d+$/.test(newDoc.id);
+  const finish = async (): Promise<void> => {
+    if (!oldDoc || !newDoc) return;
+    if (!realWritable) { setDone(true); return; }
+    setSubmitting(true);
+    setReplaceError(null);
+    try {
+      const res = await fetch('/api/documents/replace', {
+        method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ oldId: oldDoc.id, newId: newDoc.id, markOldExpired: true, inheritMetadata: true }),
+      });
+      const j = await res.json();
+      if (!res.ok || !j.ok) throw new Error(j?.error ?? `Lỗi (HTTP ${res.status}).`);
+      setReplacedReal(true);
+      setDone(true);
+    } catch (e) {
+      setReplaceError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   React.useEffect(() => {
     let alive = true;
@@ -159,7 +195,12 @@ export default function ReplacePage(): React.ReactElement {
 
           {step === 3 && oldDoc && newDoc && <CompareStep oldDoc={oldDoc} newDoc={newDoc} />}
 
-          {step === 4 && oldDoc && newDoc && <ConfirmStep oldDoc={oldDoc} newDoc={newDoc} done={done} />}
+          {step === 4 && oldDoc && newDoc && <ConfirmStep oldDoc={oldDoc} newDoc={newDoc} done={done} real={replacedReal} canWrite={realWritable} />}
+          {step === 4 && replaceError && (
+            <div className="rp-warn" style={{ marginTop: 12, background: 'var(--danger-100)', borderColor: 'var(--danger-500)' }}>
+              <span>Ghi thất bại: {replaceError}</span>
+            </div>
+          )}
         </div>
 
         {/* Footer điều hướng */}
@@ -182,7 +223,9 @@ export default function ReplacePage(): React.ReactElement {
               </button>
             )}
             {step === 4 && !done && (
-              <button type="button" className="btn btn-gold" onClick={() => setDone(true)}>Hoàn tất (UI only)</button>
+              <button type="button" className="btn btn-gold" onClick={() => void finish()} disabled={submitting}>
+                {submitting ? 'Đang ghi…' : realWritable ? 'Hoàn tất thay thế' : 'Hoàn tất (xem trước)'}
+              </button>
             )}
             {step === 4 && done && (
               <button type="button" className="btn btn-primary" onClick={reset}>Tạo lượt thay thế khác</button>

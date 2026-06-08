@@ -59,7 +59,9 @@ async function fetchAndBuild(accessToken: string): Promise<CachedDocs> {
   const site = await resolveSiteId(accessToken);
   const list = await resolveListId(accessToken);
 
-  const first = `/sites/${site.id}/lists/${list.id}/items?$expand=fields,driveItem&$top=${PAGE_SIZE}`;
+  // BUG#26: $select driveItem ĐÚNG field cần (bỏ thumbnails/downloadUrl/... nặng) → giảm payload + thời gian Graph build.
+  const driveSelect = 'id,name,webUrl,size,file,folder,lastModifiedDateTime,lastModifiedBy,parentReference';
+  const first = `/sites/${site.id}/lists/${list.id}/items?$expand=fields,driveItem($select=${driveSelect})&$top=${PAGE_SIZE}`;
   const rawItems: GraphListItem[] = [];
   let nextUrl: string | undefined = first;
   let truncated = false;
@@ -94,40 +96,97 @@ async function fetchAndBuild(accessToken: string): Promise<CachedDocs> {
   return { documents, rawItemCount: rawItems.length, fileItemCount: fileItems.length, pages, truncated, stats, builtAt: Date.now(), buildMs };
 }
 
-/**
- * Lấy documents (mapped + paired) qua cache dùng chung.
- * @param forceRefresh bỏ qua cache (admin/dev: ?forceRefresh=1).
- */
-export async function getCachedDocuments(accessToken: string, forceRefresh = false): Promise<DocsResult> {
-  _metrics.requests++;
+function hitRate(): string {
+  const hits = _metrics.cacheHits + _metrics.inflightHits;
+  return _metrics.requests ? `${Math.round((hits / _metrics.requests) * 100)}%` : '0%';
+}
 
-  // 1) Cache còn hạn?
-  if (!forceRefresh && _cache && Date.now() - _cache.builtAt < TTL_MS) {
-    _metrics.cacheHits++;
-    clog(`documents hit (age ${Math.round((Date.now() - _cache.builtAt) / 1000)}s, docs=${_cache.documents.length})`);
-    return { ..._cache, source: 'cache' };
+// Chạy 1 lần fetch (dedupe qua _inflight). Cập nhật _cache khi xong. Có [dms-perf] graph-fetch.
+function runRefresh(accessToken: string): Promise<CachedDocs> {
+  if (_inflight) {
+    return _inflight;
   }
-
-  // 2) Đang có fetch chạy? → await chung (in-flight dedupe).
-  if (!forceRefresh && _inflight) {
-    _metrics.inflightHits++;
-    clog('documents reuse-inflight');
-    const built = await _inflight;
-    return { ...built, source: 'inflight' };
-  }
-
-  // 3) Fetch mới.
-  clog('documents miss');
+  const tFetch = performance.now();
   _inflight = fetchAndBuild(accessToken)
     .then((built) => {
       _cache = built;
+      // eslint-disable-next-line no-console
+      console.log(`[dms-perf] documents graph-fetch=${(performance.now() - tFetch).toFixed(0)}ms docs=${built.documents.length} pages=${built.pages}`);
       return built;
     })
     .finally(() => {
       _inflight = undefined;
     });
-  const built = await _inflight;
-  return { ...built, source: 'graph' };
+  return _inflight;
+}
+
+/**
+ * Lấy documents (mapped + paired) qua cache dùng chung. Stale-while-revalidate (BUG#26):
+ *  - Cache còn hạn → trả ngay.
+ *  - Cache QUÁ HẠN → trả STALE ngay + refresh NỀN (không block UI).
+ *  - Chưa có cache + đang inflight → reuse.
+ *  - Chưa có cache (cold) → fetch (block lần đầu duy nhất; prewarm để tránh).
+ * @param forceRefresh bỏ qua cache (admin/dev: ?forceRefresh=1).
+ */
+export async function getCachedDocuments(accessToken: string, forceRefresh = false): Promise<DocsResult> {
+  _metrics.requests++;
+
+  if (forceRefresh) {
+    clog('documents force-refresh');
+    return { ...(await runRefresh(accessToken)), source: 'graph' };
+  }
+
+  // 1) Cache còn hạn → trả ngay.
+  if (_cache && Date.now() - _cache.builtAt < TTL_MS) {
+    _metrics.cacheHits++;
+    const age = Math.round((Date.now() - _cache.builtAt) / 1000);
+    clog(`documents hit (age ${age}s, docs=${_cache.documents.length})`);
+    // eslint-disable-next-line no-console
+    console.log(`[dms-perf] documents cache-hit age=${age}s docs=${_cache.documents.length} hitRate=${hitRate()}`);
+    return { ..._cache, source: 'cache' };
+  }
+
+  // 2) Cache quá hạn → SERVE STALE ngay + refresh nền (không chặn UI).
+  if (_cache) {
+    _metrics.cacheHits++;
+    const age = Math.round((Date.now() - _cache.builtAt) / 1000);
+    clog(`documents stale-serve (age ${age}s) + refresh nền`);
+    // eslint-disable-next-line no-console
+    console.log(`[dms-perf] documents stale-serve age=${age}s docs=${_cache.documents.length} hitRate=${hitRate()} (refresh nền)`);
+    void runRefresh(accessToken).catch(() => undefined); // nền, nuốt lỗi (vẫn còn stale để dùng)
+    return { ..._cache, source: 'cache' };
+  }
+
+  // 3) Chưa có cache nhưng đang fetch → reuse inflight.
+  if (_inflight) {
+    _metrics.inflightHits++;
+    clog('documents reuse-inflight');
+    // eslint-disable-next-line no-console
+    console.log(`[dms-perf] documents reuse-inflight hitRate=${hitRate()}`);
+    return { ...(await _inflight), source: 'inflight' };
+  }
+
+  // 4) Cold (chưa từng có cache) → fetch chặn (chỉ lần đầu; prewarm để né).
+  clog('documents miss (cold)');
+  return { ...(await runRefresh(accessToken)), source: 'graph' };
+}
+
+/**
+ * BUG#26 — Prewarm cache (non-blocking). Gọi từ instrumentation lúc server start.
+ * Không làm gì nếu đã có cache hoặc đang fetch. Nuốt lỗi (không crash boot).
+ */
+export function prewarmDocumentsCache(accessToken: string): void {
+  if (_cache || _inflight) {
+    return;
+  }
+  // eslint-disable-next-line no-console
+  console.log('[dms-perf] prewarm start');
+  void runRefresh(accessToken)
+    .then((b) => {
+      // eslint-disable-next-line no-console
+      console.log(`[dms-perf] prewarm done docs=${b.documents.length} pages=${b.pages}`);
+    })
+    .catch(() => undefined);
 }
 
 /**

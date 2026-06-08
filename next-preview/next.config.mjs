@@ -7,6 +7,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // BUG#26: bật instrumentation hook → prewarm cache lúc server start (instrumentation.ts).
+  experimental: { instrumentationHook: true },
   // Preview chỉ kiểm UI/UX — không chặn dev/build vì lỗi type/lint.
   typescript: { ignoreBuildErrors: true },
   eslint: { ignoreDuringBuilds: true },
