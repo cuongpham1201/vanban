@@ -13,6 +13,9 @@ export default function DocumentList({
   onOpen,
   onQuick,
   onPrefetch,
+  selectable,
+  selectedIds,
+  onToggleSelect,
 }: {
   docs: SearchDoc[];
   total: number;
@@ -21,6 +24,9 @@ export default function DocumentList({
   onOpen?: (id: string) => void;
   onQuick?: (id: string) => void;
   onPrefetch?: (id: string) => void;
+  selectable?: boolean;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
 }): React.ReactElement {
   return (
     <section className="listcol scrollbar">
@@ -35,7 +41,18 @@ export default function DocumentList({
       ) : (
         <div className="doclist">
           {docs.map((d) => (
-            <DocumentRow key={d.id} doc={d} selected={d.id === selectedId} onSelect={onSelect} onOpen={onOpen} onQuick={onQuick} onPrefetch={onPrefetch} />
+            <DocumentRow
+              key={d.id}
+              doc={d}
+              selected={d.id === selectedId}
+              onSelect={onSelect}
+              onOpen={onOpen}
+              onQuick={onQuick}
+              onPrefetch={onPrefetch}
+              selectable={selectable}
+              checked={selectedIds?.has(d.id)}
+              onToggleSelect={onToggleSelect}
+            />
           ))}
         </div>
       )}

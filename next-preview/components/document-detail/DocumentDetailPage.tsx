@@ -1,13 +1,15 @@
 'use client';
 
 import * as React from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { IDocument } from '@dms/models/IDocument';
 import { toDetailDoc } from './documentDetailTypes';
 import DocumentHeader from './DocumentHeader';
 import DocumentPreview from './DocumentPreview';
 import MetadataPanel from './MetadataPanel';
 import EditMetadataDrawer from './EditMetadataDrawer';
+import ConfirmDialog from '@/components/common/ConfirmDialog';
+import { deleteDocument } from '@/lib/dms/deleteClient';
 
 interface DetailResponse {
   ok: boolean;
@@ -22,6 +24,7 @@ const DETAIL_TTL = 5 * 60 * 1000;
 // Trang chi tiết — gọi GET /api/documents/[id] (read-only). Render header+metadata trước,
 // PDF load async (iframe). Có cache → render ngay + refresh nền (BUG#13).
 export default function DocumentDetailPage({ id }: { id: string }): React.ReactElement {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const rawReturn = searchParams.get('returnUrl');
   const returnUrl = rawReturn && rawReturn.startsWith('/') ? rawReturn : undefined;
@@ -32,6 +35,22 @@ export default function DocumentDetailPage({ id }: { id: string }): React.ReactE
   const [canWrite, setCanWrite] = React.useState(false);
   const [editing, setEditing] = React.useState(false);
   const [toast, setToast] = React.useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
+  const [deleting, setDeleting] = React.useState(false);
+
+  const onDelete = React.useCallback(async (): Promise<void> => {
+    setDeleting(true);
+    const r = await deleteDocument(id);
+    setDeleting(false);
+    if (!r.ok) {
+      setConfirmDelete(false);
+      setToast(`Xóa thất bại: ${r.error ?? 'lỗi không xác định'}`);
+      window.setTimeout(() => setToast(null), 5000);
+      return;
+    }
+    _detailCache.delete(id);
+    router.push(returnUrl ?? '/search');
+  }, [id, returnUrl, router]);
 
   const load = React.useCallback(async (): Promise<void> => {
     try {
@@ -125,7 +144,7 @@ export default function DocumentDetailPage({ id }: { id: string }): React.ReactE
   const detail = toDetailDoc(doc);
   return (
     <div className="dd-root">
-      <DocumentHeader doc={detail} returnUrl={returnUrl} canWrite={canWrite} onEdit={() => setEditing(true)} />
+      <DocumentHeader doc={detail} returnUrl={returnUrl} canWrite={canWrite} onEdit={() => setEditing(true)} onDelete={() => setConfirmDelete(true)} />
       <div className="split">
         <DocumentPreview doc={detail} />
         <MetadataPanel doc={detail} />
@@ -141,6 +160,22 @@ export default function DocumentDetailPage({ id }: { id: string }): React.ReactE
             void load();
             window.setTimeout(() => setToast(null), 4000);
           }}
+        />
+      )}
+
+      {confirmDelete && (
+        <ConfirmDialog
+          title="Xóa văn bản?"
+          message={
+            <>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>{detail.num}</div>
+              <div>Xóa văn bản này khỏi SharePoint, bao gồm file PDF và file bản mềm liên quan nếu có. Văn bản sẽ vào thùng rác SharePoint.</div>
+            </>
+          }
+          confirmLabel="Xóa văn bản"
+          busy={deleting}
+          onConfirm={() => void onDelete()}
+          onCancel={() => setConfirmDelete(false)}
         />
       )}
 

@@ -471,6 +471,83 @@ export class SharePointDmsService {
   }
 
   /**
+   * Xóa văn bản theo listItem id (app-only). Đưa vào recycle bin (Graph DELETE mặc định, KHÔNG
+   * permanent). Xóa file chính + mọi file nguồn cùng base trong cùng folder (.docx/.doc/.xlsx/
+   * .xls/.pptx/.ppt). Trả {deleted, skipped, warnings}. Ném GraphError (404) nếu item không tồn tại.
+   */
+  async deleteDocumentByListItemId(
+    id: string
+  ): Promise<{ deleted: string[]; skipped: string[]; warnings: string[] }> {
+    this.assertWriteEnabled();
+    const site = await resolveSiteId(this.accessToken);
+    const list = await resolveListId(this.accessToken);
+
+    // 1) Resolve driveItem từ listItem id.
+    const main = await graphFetch<{
+      id: string;
+      name?: string;
+      file?: unknown;
+      parentReference?: { driveId?: string; id?: string };
+    }>(`/sites/${site.id}/lists/${list.id}/items/${id}/driveItem?$select=id,name,file,parentReference`, {
+      accessToken: this.accessToken,
+    });
+
+    const deleted: string[] = [];
+    const skipped: string[] = [];
+    const warnings: string[] = [];
+
+    const driveId = main.parentReference?.driveId;
+    const folderId = main.parentReference?.id;
+    const mainName = main.name ?? '';
+    if (!driveId || !main.id) {
+      warnings.push('Không xác định được driveItem/driveId cho văn bản này.');
+      return { deleted, skipped, warnings };
+    }
+
+    // base filename = bỏ phần mở rộng cuối.
+    const baseOf = (n: string): string => {
+      const dot = n.lastIndexOf('.');
+      return dot > 0 ? n.slice(0, dot) : n;
+    };
+    const extOf = (n: string): string => {
+      const dot = n.lastIndexOf('.');
+      return dot > 0 ? n.slice(dot).toLowerCase() : '';
+    };
+    const base = baseOf(mainName);
+
+    // 2) Xóa file chính (PDF/main). Lỗi để propagate → route map 404/403/502.
+    await this.graphWrite<unknown>(`/drives/${driveId}/items/${main.id}`, { method: 'DELETE' });
+    deleted.push(mainName || main.id);
+
+    // 3) Tìm + xóa file nguồn cùng base trong CÙNG folder.
+    const SOURCE_EXTS = new Set(['.docx', '.doc', '.xlsx', '.xls', '.pptx', '.ppt']);
+    if (folderId) {
+      try {
+        const children = await graphFetch<{ value: { id: string; name: string; file?: unknown }[] }>(
+          `/drives/${driveId}/items/${folderId}/children?$select=id,name,file&$top=999`,
+          { accessToken: this.accessToken }
+        );
+        for (const c of children.value ?? []) {
+          if (c.id === main.id) continue;
+          if (baseOf(c.name) === base && SOURCE_EXTS.has(extOf(c.name))) {
+            try {
+              await this.graphWrite<unknown>(`/drives/${driveId}/items/${c.id}`, { method: 'DELETE' });
+              deleted.push(c.name);
+            } catch {
+              warnings.push(`Không xóa được file nguồn: ${c.name}`);
+              skipped.push(c.name);
+            }
+          }
+        }
+      } catch {
+        warnings.push('Không liệt kê được folder để xóa file nguồn (chỉ xóa file chính).');
+      }
+    }
+
+    return { deleted, skipped, warnings };
+  }
+
+  /**
    * Low-level Graph write — chặn cứng nếu flag tắt. Dùng bởi các method write ở trên.
    */
   protected async graphWrite<T = unknown>(path: string, options: Omit<GraphFetchOptions, 'accessToken'>): Promise<T> {

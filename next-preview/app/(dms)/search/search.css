@@ -151,5 +151,38 @@
 
 .sc-empty { padding: 40px var(--sp-6); color: var(--gray-500); font-size: var(--fs-sm); }
 
+/* Checkbox chọn để xóa (multi-select) */
+.docrow-check { width: 17px; height: 17px; accent-color: var(--navy-600); cursor: pointer; flex-shrink: 0; }
+.dcard-check { position: absolute; top: 8px; left: 8px; z-index: 2; width: 18px; height: 18px; accent-color: var(--navy-600); cursor: pointer;
+  background: var(--white); border-radius: 4px; box-shadow: var(--sh-1); }
+.docrow.checked { border-color: var(--navy-400); border-left-color: var(--navy-600); background: var(--navy-050, #eef3fb); }
+.dcard.checked { border-color: var(--navy-400); box-shadow: 0 0 0 2px var(--navy-200, #c9d8ef); }
+
 @media (max-width: 1200px) { .preview { width: 380px; } .filters { width: 230px; } }
 @media (max-width: 980px) { .filters, .preview { display: none !important; } }
+
+/* BUG#24 — Mobile <768px: header gọn, ép 1 cột, modal full-screen, không tràn ngang */
+@media (max-width: 767px) {
+  .subbar { flex-wrap: wrap; gap: 8px 10px; padding: 10px var(--sp-4); }
+  .subbar h1 { font-size: var(--fs-h3); white-space: nowrap; flex: 0 1 auto; }
+  .subbar .seg { display: none; }            /* ẩn view switch — mobile ép danh sách */
+  .subbar .sortbox { order: 5; flex-basis: 100%; }
+  .subbar .sortbox .qf-select { flex: 1; max-width: none; }
+  .searchrow { padding: 8px var(--sp-4); }
+  .bigsearch { max-width: none; }
+  .topbar2 { padding: 8px var(--sp-4); flex-wrap: nowrap; overflow-x: auto; }
+  .listhead { padding: 10px var(--sp-4); }
+  .doclist { padding: 10px var(--sp-4) 40px; }
+  .docrow { padding: 12px; }
+  .docrow .top { flex-wrap: wrap; }
+  .docrow .rowbadges { width: 100%; justify-content: flex-start; margin-left: 0; }
+  .docrow .dmeta { gap: 4px 10px; }
+  .cardgrid { grid-template-columns: 1fr; padding: 12px var(--sp-4) 40px; }
+  .bulkbar { margin: 0 var(--sp-4) 8px; }
+  /* Fast PDF + Edit metadata modal: full-screen, action bar gọn */
+  .fpm-overlay, .emm-overlay { padding: 0; }
+  .fpm-panel, .emm-panel { width: 100vw; height: 100dvh; border-radius: 0; }
+  .fpm-head { flex-wrap: wrap; gap: 8px; padding: 10px 12px; }
+  .fpm-head .btn { padding: 6px 10px; font-size: var(--fs-xs); }
+  .emm-pdf { flex: 0 0 50%; }
+}

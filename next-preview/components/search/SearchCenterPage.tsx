@@ -18,6 +18,8 @@ import CardGrid from './CardGrid';
 import PreviewPane from './PreviewPane';
 import FastPdfModal from './FastPdfModal';
 import EditMetadataModal from '@/components/document-detail/EditMetadataModal';
+import ConfirmDialog from '@/components/common/ConfirmDialog';
+import { deleteDocument, bulkDeleteDocuments } from '@/lib/dms/deleteClient';
 
 interface DocsResponse {
   ok: boolean;
@@ -65,6 +67,24 @@ export default function SearchCenterPage(): React.ReactElement {
   const [quickDoc, setQuickDoc] = React.useState<SearchDoc | null>(null); // BUG#9 modal
   const [canWrite, setCanWrite] = React.useState(false); // BUG#12A
   const [editingDoc, setEditingDoc] = React.useState<IDocument | null>(null);
+  // Xóa văn bản (multi-select + single).
+  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
+  const [confirm, setConfirm] = React.useState<{ kind: 'single' | 'bulk'; ids: string[] } | null>(null);
+  const [deleting, setDeleting] = React.useState(false);
+  const [toast, setToast] = React.useState<string | null>(null);
+  const showToast = (m: string): void => {
+    setToast(m);
+    window.setTimeout(() => setToast(null), 5000);
+  };
+  // BUG#24: mobile ép view = list (không 3 cột). Không đổi state `mode` để không ghi URL.
+  const [isMobile, setIsMobile] = React.useState(false);
+  React.useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    const apply = (): void => setIsMobile(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
 
   const dq = useDebounced(query, 300);
 
@@ -225,6 +245,65 @@ export default function SearchCenterPage(): React.ReactElement {
     if (d) setEditingDoc(d);
   };
 
+  const toggleSelect = (id: string): void => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const clearSelection = (): void => setSelectedIds(new Set());
+
+  // Xóa: chỉ id số (list item thật) mới xóa được. Lọc bỏ id mock/không hợp lệ.
+  const deletableIds = (ids: string[]): string[] => ids.filter((x) => /^\d+$/.test(x));
+
+  const runDelete = async (): Promise<void> => {
+    if (!confirm) return;
+    const ids = deletableIds(confirm.ids);
+    if (ids.length === 0) {
+      setConfirm(null);
+      showToast('Không có văn bản hợp lệ để xóa.');
+      return;
+    }
+    setDeleting(true);
+    if (confirm.kind === 'single') {
+      const r = await deleteDocument(ids[0]);
+      setDeleting(false);
+      setConfirm(null);
+      if (!r.ok) {
+        showToast(`Xóa thất bại: ${r.error ?? 'lỗi không xác định'}`);
+        return;
+      }
+      // chọn item kế tiếp nếu có
+      const idx = viewDocs.findIndex((v) => v.id === ids[0]);
+      const nextDoc = viewDocs[idx + 1] ?? viewDocs[idx - 1] ?? null;
+      setSelectedId(nextDoc ? nextDoc.id : null);
+      setSelectedIds((prev) => {
+        const n = new Set(prev);
+        n.delete(ids[0]);
+        return n;
+      });
+      loadDocs();
+      showToast('Đã xóa 1 văn bản.');
+    } else {
+      const res = await bulkDeleteDocuments(ids);
+      setDeleting(false);
+      setConfirm(null);
+      if (!res.ok) {
+        showToast(`Xóa hàng loạt thất bại: ${res.error ?? 'lỗi không xác định'}`);
+        return;
+      }
+      const results = res.results ?? [];
+      const okCount = results.filter((x) => x.ok).length;
+      const failed = results.filter((x) => !x.ok);
+      clearSelection();
+      loadDocs();
+      const failMsg = failed.length ? ` Lỗi: ${failed.slice(0, 3).map((f) => `#${f.id}`).join(', ')}${failed.length > 3 ? '…' : ''}.` : '';
+      showToast(`Đã xóa ${okCount}/${ids.length} văn bản.${failMsg}`);
+    }
+  };
+
   if (error) {
     return (
       <div className="sc-root">
@@ -233,10 +312,22 @@ export default function SearchCenterPage(): React.ReactElement {
     );
   }
   const loading = raw === null;
+  const effectiveMode: ViewMode = isMobile && mode === '3col' ? 'list' : mode;
 
   return (
     <div className="sc-root">
       <SearchSubBar count={filtered.length} mode={mode} onMode={setMode} sort={sort} onSort={setSort} />
+
+      {canWrite && selectedIds.size > 0 && (
+        <div className="bulkbar" role="region" aria-label="Hành động hàng loạt">
+          <span className="bulkbar-count">Đã chọn {selectedIds.size} văn bản</span>
+          <div style={{ flex: 1 }} />
+          <button className="btn btn-danger btn-sm" onClick={() => setConfirm({ kind: 'bulk', ids: Array.from(selectedIds) })}>
+            <Icon name="trash" size={15} /> Xóa
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={clearSelection}>Bỏ chọn</button>
+        </div>
+      )}
 
       <div className="searchrow">
         <SearchBar value={query} onChange={setQuery} onClear={() => setQuery('')} />
@@ -248,7 +339,7 @@ export default function SearchCenterPage(): React.ReactElement {
         />
       </div>
 
-      {mode !== '3col' && (
+      {effectiveMode !== '3col' && (
         <div className="topbar2">
           <span className="t-xs mut" style={{ fontWeight: 600 }}>
             <Icon name="filter" /> Lọc nhanh:
@@ -269,7 +360,7 @@ export default function SearchCenterPage(): React.ReactElement {
       )}
 
       <div className="sc-layout">
-        {mode === '3col' && (
+        {effectiveMode === '3col' && (
           <FilterPanel groups={facetGroups} selected={selected} onToggle={toggleFacet} onClearAll={() => setSelected({})} />
         )}
 
@@ -277,27 +368,40 @@ export default function SearchCenterPage(): React.ReactElement {
           <section className="listcol scrollbar">
             <div className="sc-empty">Đang tải văn bản…</div>
           </section>
-        ) : mode === 'cards' ? (
-          <CardGrid docs={viewDocs} onSelect={openDetail} onOpen={openDetail} onQuick={openQuick} onPrefetch={prefetchDetail} />
+        ) : effectiveMode === 'cards' ? (
+          <CardGrid
+            docs={viewDocs}
+            onSelect={openDetail}
+            onOpen={openDetail}
+            onQuick={openQuick}
+            onPrefetch={prefetchDetail}
+            selectable={canWrite}
+            selectedIds={selectedIds}
+            onToggleSelect={toggleSelect}
+          />
         ) : (
           <DocumentList
             docs={viewDocs}
             total={filtered.length}
             selectedId={effectiveId}
-            onSelect={mode === 'list' ? openDetail : selectItem}
+            onSelect={effectiveMode === 'list' ? openDetail : selectItem}
             onOpen={openDetail}
             onQuick={openQuick}
             onPrefetch={prefetchDetail}
+            selectable={canWrite}
+            selectedIds={selectedIds}
+            onToggleSelect={toggleSelect}
           />
         )}
 
-        {mode === '3col' && (
+        {effectiveMode === '3col' && (
           <PreviewPane
             doc={selectedDoc}
             openHref={selectedDoc ? detailHref(selectedDoc.id) : undefined}
             canWrite={canWrite}
             onEdit={selectedDoc ? () => openEdit(selectedDoc.id) : undefined}
             onQuickPdf={selectedDoc ? () => setQuickDoc(selectedDoc) : undefined}
+            onDelete={selectedDoc && /^\d+$/.test(selectedDoc.id) ? () => setConfirm({ kind: 'single', ids: [selectedDoc.id] }) : undefined}
           />
         )}
       </div>
@@ -315,6 +419,39 @@ export default function SearchCenterPage(): React.ReactElement {
             loadDocs(); // refresh metadata panel + list
           }}
         />
+      )}
+
+      {confirm && (
+        <ConfirmDialog
+          title={confirm.kind === 'bulk' ? `Xóa ${deletableIds(confirm.ids).length} văn bản?` : 'Xóa văn bản?'}
+          message={
+            <>
+              {confirm.kind === 'bulk' ? (
+                <div style={{ marginBottom: 6 }}>Bạn sắp xóa <b>{deletableIds(confirm.ids).length}</b> văn bản.</div>
+              ) : (
+                <div style={{ fontWeight: 600, marginBottom: 6 }}>{viewDocs.find((v) => v.id === confirm.ids[0])?.num ?? confirm.ids[0]}</div>
+              )}
+              <div>Hành động này sẽ xóa file PDF và file bản mềm liên quan khỏi SharePoint (vào thùng rác).</div>
+            </>
+          }
+          confirmLabel="Xóa"
+          busy={deleting}
+          onConfirm={() => void runDelete()}
+          onCancel={() => setConfirm(null)}
+        />
+      )}
+
+      {toast && (
+        <div
+          role="status"
+          style={{
+            position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 80,
+            background: 'var(--navy-700)', color: '#fff', padding: '10px 18px', borderRadius: 'var(--r-md)',
+            boxShadow: '0 8px 24px -8px rgba(0,0,0,.3)', fontSize: 'var(--fs-sm)', maxWidth: '90vw', textAlign: 'center',
+          }}
+        >
+          {toast}
+        </div>
       )}
     </div>
   );

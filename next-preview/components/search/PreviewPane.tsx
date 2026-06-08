@@ -13,12 +13,14 @@ export default function PreviewPane({
   canWrite,
   onEdit,
   onQuickPdf,
+  onDelete,
 }: {
   doc: SearchDoc | null;
   openHref?: string;
   canWrite?: boolean;
   onEdit?: () => void;
   onQuickPdf?: () => void;
+  onDelete?: () => void;
 }): React.ReactElement {
   if (!doc) {
     return (
@@ -80,10 +82,19 @@ export default function PreviewPane({
             </a>
           )}
         </div>
-        {canWrite && onEdit && (
-          <button className="btn btn-subtle" style={{ marginTop: 10, width: '100%', justifyContent: 'center', gap: 6 }} onClick={onEdit}>
-            <Icon name="edit" size={16} /> Sửa metadata
-          </button>
+        {canWrite && (onEdit || onDelete) && (
+          <div className="row gap-2" style={{ marginTop: 10 }}>
+            {onEdit && (
+              <button className="btn btn-subtle" style={{ flex: 1, justifyContent: 'center', gap: 6 }} onClick={onEdit}>
+                <Icon name="edit" size={16} /> Sửa metadata
+              </button>
+            )}
+            {onDelete && (
+              <button className="btn btn-danger" title="Xóa văn bản" aria-label="Xóa văn bản" onClick={onDelete}>
+                <Icon name="trash" size={16} /> Xóa
+              </button>
+            )}
+          </div>
         )}
       </div>
 

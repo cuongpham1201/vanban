@@ -11,12 +11,18 @@ export default function CardGrid({
   onOpen,
   onQuick,
   onPrefetch,
+  selectable,
+  selectedIds,
+  onToggleSelect,
 }: {
   docs: SearchDoc[];
   onSelect: (id: string) => void;
   onOpen?: (id: string) => void;
   onQuick?: (id: string) => void;
   onPrefetch?: (id: string) => void;
+  selectable?: boolean;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
 }): React.ReactElement {
   return (
     <section className="listcol scrollbar">
@@ -26,13 +32,23 @@ export default function CardGrid({
         <div className="cardgrid">
           {docs.map((d) => (
             <div
-              className="dcard"
+              className={`dcard ${selectedIds?.has(d.id) ? 'checked' : ''}`}
               key={d.id}
               onClick={() => onSelect(d.id)}
               onDoubleClick={() => (onOpen ?? onSelect)(d.id)}
               onMouseEnter={() => onPrefetch?.(d.id)}
               title="Nhấn đúp để mở chi tiết"
             >
+              {selectable && onToggleSelect && /^\d+$/.test(d.id) && (
+                <input
+                  type="checkbox"
+                  className="dcard-check"
+                  checked={!!selectedIds?.has(d.id)}
+                  aria-label="Chọn văn bản để xóa"
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) => { e.stopPropagation(); onToggleSelect(d.id); }}
+                />
+              )}
               {onQuick && d.type === 'pdf' && (
                 <button
                   type="button"

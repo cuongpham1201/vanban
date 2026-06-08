@@ -6,7 +6,7 @@ export type IconName =
   | 'dashboard' | 'search' | 'docs' | 'upload' | 'replace' | 'admin'
   | 'bell' | 'help' | 'clock' | 'star' | 'archive' | 'reports'
   | 'cols' | 'list' | 'grid' | 'plus' | 'chevdown' | 'chevright' | 'filter'
-  | 'pin' | 'download' | 'share' | 'check' | 'eye' | 'edit' | 'x';
+  | 'pin' | 'download' | 'share' | 'check' | 'eye' | 'edit' | 'x' | 'trash';
 
 const PATHS: Record<IconName, React.ReactNode> = {
   dashboard: (
@@ -121,6 +121,12 @@ const PATHS: Record<IconName, React.ReactNode> = {
   ),
   edit: <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />,
   x: <path d="M18 6 6 18M6 6l12 12" />,
+  trash: (
+    <>
+      <path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m2 0v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6" />
+      <path d="M10 11v6M14 11v6" />
+    </>
+  ),
 };
 
 export interface IconProps {

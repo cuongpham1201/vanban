@@ -88,3 +88,13 @@
   .dd-root .dd-meta { width: 100%; border-left: 0; border-top: 1px solid var(--gray-200); }
   .dd-root .dochead .actions { width: 100%; margin-left: 0; margin-top: 8px; }
 }
+/* BUG#24 — Detail mobile <768px: action buttons gọn, PDF fit-width, không tràn ngang */
+@media (max-width: 767px) {
+  .dd-root .dochead-slim { padding: 8px var(--sp-4); gap: 8px; }
+  .dd-root .dochead-slim .actions { width: 100%; flex-wrap: wrap; justify-content: flex-start; gap: 6px; }
+  .dd-root .dochead-slim .actions .btn { padding: 6px 10px; font-size: var(--fs-xs); flex: 1 1 auto; justify-content: center; }
+  .dd-root .viewer { min-height: 62vh; }
+  .dd-root .vscroll { padding: 12px; }
+  .dd-root .pdfpage { width: 100%; padding: 24px 18px; }
+  .dd-root .mcontent { padding: var(--sp-4); }
+}

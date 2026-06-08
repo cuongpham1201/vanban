@@ -13,6 +13,9 @@ export default function DocumentRow({
   onOpen,
   onQuick,
   onPrefetch,
+  selectable,
+  checked,
+  onToggleSelect,
 }: {
   doc: SearchDoc;
   selected: boolean;
@@ -20,16 +23,32 @@ export default function DocumentRow({
   onOpen?: (id: string) => void;
   onQuick?: (id: string) => void;
   onPrefetch?: (id: string) => void;
+  selectable?: boolean;
+  checked?: boolean;
+  onToggleSelect?: (id: string) => void;
 }): React.ReactElement {
   return (
     <div
-      className={`docrow ${selected ? 'sel' : ''}`}
+      className={`docrow ${selected ? 'sel' : ''} ${checked ? 'checked' : ''}`}
       onClick={() => onSelect(doc.id)}
       onDoubleClick={() => onOpen?.(doc.id)}
       onMouseEnter={() => onPrefetch?.(doc.id)}
       title="Nhấn đúp để mở chi tiết"
     >
       <div className="top">
+        {selectable && onToggleSelect && /^\d+$/.test(doc.id) && (
+          <input
+            type="checkbox"
+            className="docrow-check"
+            checked={!!checked}
+            aria-label="Chọn văn bản để xóa"
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => {
+              e.stopPropagation();
+              onToggleSelect(doc.id);
+            }}
+          />
+        )}
         <div className={`ficon ${doc.type === 'doc' ? 'doc' : ''}`}>{doc.type === 'doc' ? 'DOC' : 'PDF'}</div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="row gap-2" style={{ marginBottom: 2 }}>

@@ -12,11 +12,13 @@ export default function DocumentHeader({
   returnUrl,
   canWrite,
   onEdit,
+  onDelete,
 }: {
   doc: DetailDoc;
   returnUrl?: string;
   canWrite?: boolean;
   onEdit?: () => void;
+  onDelete?: () => void;
 }): React.ReactElement {
   const router = useRouter();
   // "Quay lại kết quả": có returnUrl → về đúng URL tìm kiếm (giữ filter); không → /search.
@@ -51,6 +53,11 @@ export default function DocumentHeader({
         ) : (
           <button className="btn btn-primary" disabled style={{ opacity: 0.55 }}>
             <Icon name="download" size={16} /> Tải xuống
+          </button>
+        )}
+        {canWrite && onDelete && (
+          <button className="btn btn-danger" title="Xóa văn bản khỏi SharePoint" onClick={onDelete}>
+            <Icon name="trash" size={16} /> Xóa
           </button>
         )}
       </div>
