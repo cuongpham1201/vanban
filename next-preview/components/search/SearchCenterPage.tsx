@@ -8,6 +8,7 @@ import { isExpired } from '@dms/utils/standardization';
 import {
   FACET_DEFS, FacetDef, matchesKeyword, toSearchDoc, SearchDoc,
   SortKey, SORT_OPTIONS, DEFAULT_SORT, sortDocuments,
+  CODE_SORTED_FACETS, compareByBracketCode,
 } from './searchTypes';
 import { loadFilterConfig, subscribeFilterConfig, fetchFilterConfig } from '@/lib/dms/filterConfig';
 import SearchSubBar, { ViewMode } from './SearchSubBar';
@@ -239,9 +240,13 @@ export default function SearchCenterPage(): React.ReactElement {
           const val = def.get(d);
           counts.set(val, (counts.get(val) ?? 0) + 1);
         }
-        const items = Array.from(counts.entries())
-          .map(([value, count]) => ({ value, count }))
-          .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value, 'vi'));
+        const items = Array.from(counts.entries()).map(([value, count]) => ({ value, count }));
+        // #37: Cấp lưu trữ (DonViSoHuu) sort theo mã [00]→[99]; còn lại theo count giảm dần.
+        if (CODE_SORTED_FACETS.has(def.key)) {
+          items.sort((a, b) => compareByBracketCode(a.value, b.value));
+        } else {
+          items.sort((a, b) => b.count - a.count || a.value.localeCompare(b.value, 'vi'));
+        }
         return { key: def.key, label: def.label, open: def.open, items };
       }),
     [afterKeyword, applyFacets, orderedDefs]

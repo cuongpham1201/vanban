@@ -164,6 +164,29 @@ export const FACET_DEFS: FacetDef[] = [
   { key: 'hasEditableSource', label: 'Bản mềm', open: false, get: (d) => (d.editableSource ? 'Có bản mềm' : 'Thiếu bản mềm') },
 ];
 
+// ── Facet item ordering (BUG#37) ─────────────────────────────────────────────
+// Một số facet (vd Cấp lưu trữ = DonViSoHuu) phải sort theo MÃ ĐƠN VỊ trong [..] tăng dần
+// ([00] → [99]), KHÔNG theo số lượng. Value không có pattern [] đẩy xuống cuối.
+
+/** Parse mã trong [..] đầu chuỗi: "[18] Phòng Cơ Điện" → 18. null nếu không có. */
+export function bracketCode(value: string): number | null {
+  const m = /^\s*\[(\d+)\]/.exec(value ?? '');
+  return m ? parseInt(m[1], 10) : null;
+}
+
+/** So sánh 2 value facet theo mã [..] ASC; không có mã → cuối (rồi theo tên vi). */
+export function compareByBracketCode(a: string, b: string): number {
+  const na = bracketCode(a);
+  const nb = bracketCode(b);
+  if (na !== null && nb !== null) return na - nb || a.localeCompare(b, 'vi');
+  if (na !== null) return -1; // a có mã → đứng trước
+  if (nb !== null) return 1; // b có mã → đứng trước
+  return a.localeCompare(b, 'vi');
+}
+
+/** Facet cần sort theo mã đơn vị (thay vì theo count). */
+export const CODE_SORTED_FACETS: ReadonlySet<string> = new Set(['donViSoHuu']);
+
 // ── Sort (BUG#19) ──────────────────────────────────────────────────────────
 export type SortKey =
   | 'ngayBanHanh_desc'
