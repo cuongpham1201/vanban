@@ -5,11 +5,10 @@ import Link from 'next/link';
 import Icon from '@/components/shell/Icon';
 import { SearchDoc } from './searchTypes';
 import { isTeamsContext } from '@/lib/client/isTeamsContext';
-import { openExternal } from '@/lib/teams/teamsClient';
+import PdfCanvasViewer from '@/components/pdf/PdfCanvasViewer';
 
 // BUG#9 — Fast PDF Preview dạng MODAL (~90vw x 90vh). Mở từ icon 👁 ở kết quả search.
-// iframe PDF thật qua proxy same-origin /api/documents/[id]/file. Không dùng panel phải nữa.
-// Trong Microsoft Teams: iframe nhúng PDF bị sandbox chặn → fallback nút "Mở PDF" (mở ngoài).
+// Web → iframe PDF same-origin. Trong Microsoft Teams: iframe bị sandbox chặn → render inline PDF.js.
 export default function FastPdfModal({
   doc,
   detailHref,
@@ -20,14 +19,13 @@ export default function FastPdfModal({
   onClose: () => void;
 }): React.ReactElement {
   const isPdf = doc.type === 'pdf' && /^\d+$/.test(doc.id);
+  const fileBase = `/api/documents/${encodeURIComponent(doc.id)}/file`;
   // BUG#28: #view=FitH → fit chiều ngang (mobile không kéo ngang, vẫn zoom tay được).
-  const fileUrl = `/api/documents/${encodeURIComponent(doc.id)}/file#view=FitH`;
+  const fileUrl = `${fileBase}#view=FitH`;
 
   // Teams detection (client-only).
   const [inTeams, setInTeams] = React.useState(false);
   React.useEffect(() => setInTeams(isTeamsContext()), []);
-  const openTarget = (): string =>
-    doc.webUrl || `${typeof window !== 'undefined' ? window.location.origin : ''}/api/documents/${encodeURIComponent(doc.id)}/file`;
 
   // Đóng bằng phím Esc.
   React.useEffect(() => {
@@ -56,20 +54,7 @@ export default function FastPdfModal({
         </div>
         <div className="fpm-body">
           {isPdf && inTeams ? (
-            <div className="fpm-nopdf">
-              <div className="t-sm" style={{ fontWeight: 600, marginBottom: 6 }}>Xem PDF nhúng bị giới hạn trong Microsoft Teams.</div>
-              <div className="t-xs mut" style={{ marginBottom: 16 }}>Mở PDF trong trình duyệt để xem đầy đủ.</div>
-              <div className="row gap-2" style={{ justifyContent: 'center' }}>
-                <button type="button" className="btn btn-primary" onClick={() => void openExternal(openTarget())}>
-                  <Icon name="eye" size={16} /> Mở PDF
-                </button>
-                {doc.webUrl && (
-                  <a className="btn btn-ghost" href={doc.webUrl} target="_blank" rel="noreferrer">
-                    <Icon name="download" size={16} /> Tải xuống
-                  </a>
-                )}
-              </div>
-            </div>
+            <PdfCanvasViewer fileUrl={fileBase} downloadUrl={doc.webUrl} fileName={doc.title} />
           ) : isPdf ? (
             <iframe className="fpm-frame" src={fileUrl} title={`PDF ${doc.num}`} />
           ) : (

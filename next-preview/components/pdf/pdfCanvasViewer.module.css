@@ -1,0 +1,81 @@
+/* PdfCanvasViewer — render PDF bằng canvas (chạy trong sandbox Teams). Token ds.css. */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  background: var(--gray-100);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--white);
+  border-bottom: 1px solid var(--gray-200);
+  flex-shrink: 0;
+}
+.group { display: inline-flex; align-items: center; gap: 6px; }
+
+.btn {
+  display: inline-grid;
+  place-items: center;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--r-sm);
+  background: var(--white);
+  color: var(--gray-700);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+}
+.btn:hover { background: var(--gray-100); }
+.btn:disabled { opacity: 0.45; cursor: default; }
+/* nút "Trang trước" = chevron quay 180° */
+.group .btn:first-child svg { transform: rotate(180deg); }
+
+.pageInfo {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--gray-600);
+  min-width: 56px;
+  text-align: center;
+  font-family: var(--font-mono);
+}
+
+.viewport {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 16px;
+}
+.viewport::-webkit-scrollbar { width: 10px; height: 10px; }
+.viewport::-webkit-scrollbar-thumb { background: var(--gray-300); border-radius: 10px; border: 2px solid var(--gray-100); }
+
+.canvas {
+  box-shadow: var(--sh-2);
+  background: #fff;
+  border-radius: 2px;
+  max-width: 100%;
+  height: auto;
+}
+
+.state {
+  margin: auto;
+  text-align: center;
+  color: var(--gray-500);
+  font-size: var(--fs-sm);
+  padding: 32px 16px;
+}
+.errTitle { font-weight: 700; color: var(--danger-700); margin-bottom: 6px; }
+.errMsg { font-size: var(--fs-xs); color: var(--gray-500); word-break: break-word; }

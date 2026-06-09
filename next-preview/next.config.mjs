@@ -24,6 +24,9 @@ const nextConfig = {
       ...(config.resolve.alias || {}),
       '@dms': path.join(__dirname, 'dms'),
       '@': __dirname,
+      // pdfjs-dist tham chiếu optional Node 'canvas' (chỉ render server-side) — trình duyệt KHÔNG cần
+      // → alias false để webpack không cố bundle (PDF.js render bằng <canvas> DOM ở client).
+      canvas: false,
     };
     return config;
   },
