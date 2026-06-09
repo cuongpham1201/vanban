@@ -50,7 +50,7 @@ export const SEED_META: MetaFieldConfig[] = [
   { key: 'LoaiVanBanPhapLy', label: 'Loại VB pháp lý', type: 'Chọn', source: 'AI gợi ý', visible: true, required: false, searchable: true, filterable: true, sortable: true },
   { key: 'ChuDeNghiepVu', label: 'Chủ đề nghiệp vụ', type: 'Chọn', source: 'AI gợi ý', visible: true, required: false, searchable: true, filterable: true, sortable: false },
   { key: 'DonViPhatHanh', label: 'Đơn vị soạn thảo', type: 'Chọn', source: 'Thủ công', visible: true, required: false, searchable: true, filterable: true, sortable: true },
-  { key: 'DonViSoHuu', label: 'Đơn vị sở hữu', type: 'Chọn', source: 'Hệ thống', visible: false, required: false, searchable: false, filterable: true, sortable: false },
+  { key: 'DonViSoHuu', label: 'Cấp lưu trữ', type: 'Chọn', source: 'Hệ thống', visible: false, required: false, searchable: false, filterable: true, sortable: false },
   { key: 'NguoiKy', label: 'Người ký', type: 'Văn bản', source: 'OCR', visible: true, required: true, searchable: true, filterable: false, sortable: true },
   { key: 'NgayBanHanh', label: 'Ngày ban hành', type: 'Ngày', source: 'OCR', visible: true, required: true, searchable: false, filterable: true, sortable: true },
   { key: 'NgayHetHieuLuc', label: 'Ngày hết hiệu lực', type: 'Ngày', source: 'Thủ công', visible: true, required: false, searchable: false, filterable: true, sortable: true },

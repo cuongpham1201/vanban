@@ -31,18 +31,20 @@ export const FILTER_CONFIG_EVENT = 'dms:filterConfigChanged';
 
 // Mặc định: TẤT CẢ visible=true (giữ nguyên hành vi Search hiện tại — không ẩn filter nào
 // khi chưa có cấu hình). defaultExpanded mirror FACET_DEFS.open. Thứ tự = thứ tự facet hiện tại.
+// defaultExpanded = false cho TẤT CẢ nhóm (yêu cầu: /search first-load collapse hết).
+// visible mặc định theo yêu cầu admin; admin có thể bật/tắt và lưu chung (global) qua DMSConfig.
 export const DEFAULT_FILTER_CONFIG: FilterConfig[] = [
-  { key: 'nhomTaiLieu', label: 'Nhóm tài liệu', visible: true, defaultExpanded: true, order: 1, multiSelect: true },
-  { key: 'loaiTaiLieu', label: 'Loại tài liệu', visible: true, defaultExpanded: true, order: 2, multiSelect: true },
-  { key: 'loaiVanBanPhapLy', label: 'Loại VB pháp lý', visible: true, defaultExpanded: true, order: 3, multiSelect: true },
-  { key: 'chuDeNghiepVu', label: 'Chủ đề nghiệp vụ', visible: true, defaultExpanded: false, order: 4, multiSelect: true },
-  { key: 'donViPhatHanh', label: 'Đơn vị soạn thảo', visible: true, defaultExpanded: true, order: 5, multiSelect: true },
-  { key: 'donViSoHuu', label: 'Đơn vị sở hữu', visible: true, defaultExpanded: false, order: 6, multiSelect: true },
+  { key: 'nhomTaiLieu', label: 'Nhóm tài liệu', visible: true, defaultExpanded: false, order: 1, multiSelect: true },
+  { key: 'donViSoHuu', label: 'Cấp lưu trữ', visible: true, defaultExpanded: false, order: 2, multiSelect: true },
+  { key: 'loaiTaiLieu', label: 'Loại tài liệu', visible: true, defaultExpanded: false, order: 3, multiSelect: true },
+  { key: 'loaiVanBanPhapLy', label: 'Loại VB pháp lý', visible: true, defaultExpanded: false, order: 4, multiSelect: true },
+  { key: 'chuDeNghiepVu', label: 'Chủ đề nghiệp vụ', visible: false, defaultExpanded: false, order: 5, multiSelect: true },
+  { key: 'donViPhatHanh', label: 'Đơn vị soạn thảo', visible: true, defaultExpanded: false, order: 6, multiSelect: true },
   { key: 'namBanHanh', label: 'Năm ban hành', visible: true, defaultExpanded: false, order: 7, multiSelect: false },
   { key: 'trangThai', label: 'Trạng thái', visible: true, defaultExpanded: false, order: 8, multiSelect: true },
-  { key: 'mucDoBaoMat', label: 'Mức độ bảo mật', visible: true, defaultExpanded: false, order: 9, multiSelect: true },
-  { key: 'metadataConfidence', label: 'Độ tin cậy', visible: true, defaultExpanded: false, order: 10, multiSelect: true },
-  { key: 'nguonMetadata', label: 'Nguồn metadata', visible: true, defaultExpanded: false, order: 11, multiSelect: true },
+  { key: 'mucDoBaoMat', label: 'Mức độ bảo mật', visible: false, defaultExpanded: false, order: 9, multiSelect: true },
+  { key: 'metadataConfidence', label: 'Độ tin cậy', visible: false, defaultExpanded: false, order: 10, multiSelect: true },
+  { key: 'nguonMetadata', label: 'Nguồn metadata', visible: false, defaultExpanded: false, order: 11, multiSelect: true },
   { key: 'hasEditableSource', label: 'Bản mềm', visible: true, defaultExpanded: false, order: 12, multiSelect: false },
 ];
 

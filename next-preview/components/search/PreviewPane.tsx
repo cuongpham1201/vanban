@@ -40,7 +40,7 @@ export default function PreviewPane({
     ['Nhóm tài liệu', doc.nhom],
     ['Loại tài liệu', doc.loaiTL],
     ['Chủ đề nghiệp vụ', doc.chude],
-    ['Đơn vị sở hữu', doc.donViSH],
+    ['Cấp lưu trữ', doc.donViSH],
   ];
   return (
     <aside className="preview scrollbar">

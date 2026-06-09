@@ -23,6 +23,8 @@ export default function FilterManagerTab(): React.ReactElement {
   const [overIdx, setOverIdx] = React.useState<number | null>(null);
   const [save, setSave] = React.useState<SaveState>({ kind: 'idle' });
   const [canWrite, setCanWrite] = React.useState<boolean | null>(null);
+  const [provisioning, setProvisioning] = React.useState(false);
+  const [provisionMsg, setProvisionMsg] = React.useState<string | null>(null);
 
   // Mount: đọc cấu hình thật từ SharePoint + trạng thái quyền ghi.
   React.useEffect(() => {
@@ -75,6 +77,25 @@ export default function FilterManagerTab(): React.ReactElement {
     persist(def);
   };
 
+  // Seed list DMSConfig (tạo list + cột nếu chưa có) → /admin filter-config load/save được.
+  const onProvision = async (): Promise<void> => {
+    setProvisioning(true);
+    setProvisionMsg(null);
+    try {
+      const r = await fetch('/api/admin/provision-config', { method: 'POST', credentials: 'same-origin' });
+      const j = (await r.json()) as { ok: boolean; created?: boolean; addedColumns?: string[]; error?: string };
+      setProvisionMsg(
+        j.ok
+          ? `${j.created ? 'Đã tạo list DMSConfig' : 'List DMSConfig đã sẵn sàng'}${j.addedColumns?.length ? ` (cột: ${j.addedColumns.join(', ')})` : ''}.`
+          : `Lỗi: ${j.error ?? ''}`
+      );
+    } catch (e) {
+      setProvisionMsg(`Lỗi: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setProvisioning(false);
+    }
+  };
+
   const readOnly = canWrite === false;
   const visibleFilters = filters.filter((f) => f.visible);
 
@@ -90,10 +111,20 @@ export default function FilterManagerTab(): React.ReactElement {
           <h1>Bộ lọc tìm kiếm</h1>
           <div className="t-sm mut">Quyết định bộ lọc nào hiển thị ở Search Center · kéo-thả để sắp thứ tự · lưu chung toàn hệ thống (SharePoint)</div>
         </div>
-        <button type="button" className="btn btn-ghost" onClick={restoreDefault} disabled={readOnly}>
-          Khôi phục mặc định
-        </button>
+        <div className="row gap-2">
+          <button type="button" className="btn btn-ghost" onClick={() => void onProvision()} disabled={readOnly || provisioning} title="Tạo SharePoint list DMSConfig nếu chưa có">
+            {provisioning ? 'Đang tạo…' : 'Tạo list cấu hình'}
+          </button>
+          <button type="button" className="btn btn-ghost" onClick={restoreDefault} disabled={readOnly}>
+            Khôi phục mặc định
+          </button>
+        </div>
       </div>
+      {provisionMsg && (
+        <div className="t-xs" style={{ marginBottom: 12, color: provisionMsg.startsWith('Lỗi') ? 'var(--danger-700)' : 'var(--success-700)' }}>
+          {provisionMsg}
+        </div>
+      )}
 
       {readOnly && (
         <div className="rp-warn" style={{ marginBottom: 14, padding: '10px 14px', background: 'var(--warning-100)', border: '1px solid var(--warning-500)', borderRadius: 'var(--r-md)' }}>

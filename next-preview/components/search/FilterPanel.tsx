@@ -28,8 +28,11 @@ export default function FilterPanel({
   onToggle: (key: string, value: string) => void;
   onClearAll: () => void;
 }): React.ReactElement {
+  // Mặc định COLLAPSE tất cả nhóm (chỉ hiện header). Nhóm chỉ tự mở khi:
+  //  - g.open = true (admin đặt "Mặc định mở"), hoặc
+  //  - nhóm đang có filter active (vd mở từ link drill-down) → tiện cho user.
   const [openMap, setOpenMap] = React.useState<Record<string, boolean>>(() =>
-    Object.fromEntries(groups.map((g) => [g.key, g.open]))
+    Object.fromEntries(groups.map((g) => [g.key, g.open || (selected[g.key]?.size ?? 0) > 0]))
   );
   const [expanded, setExpanded] = React.useState<Record<string, boolean>>({});
 

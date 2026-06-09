@@ -81,7 +81,7 @@ export default function CardGrid({
                   {d.title}
                 </div>
                 <div className="row between">
-                  <span className="t-2xs mut">{d.donViPH}</span>
+                  <span className="t-2xs mut">{d.donViSH}</span>
                   <span className={`badge ${d.statusClass}`}>{d.statusLabel}</span>
                 </div>
               </div>

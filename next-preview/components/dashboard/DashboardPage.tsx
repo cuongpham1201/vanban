@@ -13,7 +13,7 @@ import {
   recentDocuments,
   typeOf,
   deptOf,
-  yearOf,
+  yearDistribution,
 } from './dashboardTypes';
 import KpiCards from './KpiCards';
 import DocumentTypeChart from './DocumentTypeChart';
@@ -78,7 +78,7 @@ export default function DashboardPage(): React.ReactElement {
   const kpis: Kpis | null = React.useMemo(() => (docs ? computeKpis(docs) : null), [docs]);
   const byType: DistItem[] = React.useMemo(() => distribution(list, typeOf, 8), [list]);
   const byDept: DistItem[] = React.useMemo(() => distribution(list, deptOf, 6), [list]);
-  const byYear: DistItem[] = React.useMemo(() => distribution(list, yearOf, 8), [list]);
+  const byYear: DistItem[] = React.useMemo(() => yearDistribution(list, 8), [list]);
   const recent: RecentDoc[] = React.useMemo(() => recentDocuments(list, 10), [list]);
 
   return (

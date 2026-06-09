@@ -81,8 +81,36 @@ const text = (s?: string | number | null): string => {
 export const typeOf = (d: IDocument): string => text(d.loaiVanBanPhapLy ?? d.loaiVanBan);
 // Phân bố theo Đơn vị phát hành (fallback DonViSoanThao v1).
 export const deptOf = (d: IDocument): string => text(d.donViPhatHanh ?? d.donViSoanThao);
+// Cấp lưu trữ = DonViSoHuu (giữ internal key; chỉ đổi nhãn hiển thị).
+export const storageOf = (d: IDocument): string => text(d.donViSoHuu);
 // Phân bố theo Năm ban hành.
 export const yearOf = (d: IDocument): string => text(d.namBanHanh);
+
+// Phân bố theo Năm ban hành — SẮP THEO NĂM GIẢM DẦN (2026, 2025…), KHÔNG theo số lượng.
+// Năm null/không hợp lệ → gộp vào bucket "Chưa có năm" và đẩy xuống cuối.
+const NO_YEAR = 'Chưa có năm';
+export function yearDistribution(docs: IDocument[], limit = 0): DistItem[] {
+  const counts = new Map<string, number>();
+  for (const d of docs) {
+    const raw = d.namBanHanh === undefined || d.namBanHanh === null ? '' : String(d.namBanHanh).trim();
+    const key = /^\d{3,4}$/.test(raw) ? raw : ''; // '' = không có năm hợp lệ
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const entries = Array.from(counts.entries());
+  // Sort theo năm GIẢM DẦN; '' (không có năm) → cuối.
+  entries.sort((a, b) => {
+    const ay = a[0] === '' ? -Infinity : Number(a[0]);
+    const by = b[0] === '' ? -Infinity : Number(b[0]);
+    return by - ay;
+  });
+  const max = entries.reduce((m, [, c]) => Math.max(m, c), 0);
+  const sliced = limit > 0 ? entries.slice(0, limit) : entries;
+  return sliced.map(([year, count]) => ({
+    label: year === '' ? NO_YEAR : year,
+    count,
+    pct: max ? Math.round((count / max) * 100) : 0,
+  }));
+}
 
 export interface RecentDoc {
   id: string;
@@ -104,6 +132,6 @@ export function recentDocuments(docs: IDocument[], limit = 10): RecentDoc[] {
       title: text(d.trichYeu),
       ngayBH: d.ngayBanHanh ? formatDate(d.ngayBanHanh) : '—',
       type: d.fileKind === 'pdf' ? 'pdf' : 'doc',
-      donVi: deptOf(d),
+      donVi: storageOf(d), // hiển thị Cấp lưu trữ (DonViSoHuu) ở cột phải "Văn bản mới nhất"
     }));
 }

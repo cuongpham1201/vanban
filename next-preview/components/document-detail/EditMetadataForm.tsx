@@ -40,7 +40,7 @@ const GROUPS: FieldGroup[] = [
       { col: 'LoaiTaiLieu', label: 'Loại tài liệu', type: 'select', ck: 'loaiTaiLieu' },
       { col: 'ChuDeNghiepVu', label: 'Chủ đề nghiệp vụ', type: 'text' },
       { col: 'DonViPhatHanh', label: 'Đơn vị soạn thảo', type: 'select', ck: 'donViPhatHanh' },
-      { col: 'DonViSoHuu', label: 'Đơn vị sở hữu', type: 'select', ck: 'donViSoHuu' },
+      { col: 'DonViSoHuu', label: 'Cấp lưu trữ', type: 'select', ck: 'donViSoHuu' },
       { col: 'NguonMetadata', label: 'Nguồn metadata', type: 'select', ck: 'nguonMetadata' },
       { col: 'MetadataConfidence', label: 'Độ tin cậy', type: 'select', ck: 'metadataConfidence' },
     ],

@@ -55,7 +55,7 @@ export const FIELDS: FieldDef[] = [
   { key: 'loaiTaiLieu', label: 'Loại tài liệu', type: 'select', choices: C.loaiTaiLieu },
   { key: 'chuDeNghiepVu', label: 'Chủ đề nghiệp vụ', type: 'text' },
   { key: 'donViPhatHanh', label: 'Đơn vị soạn thảo', type: 'select', choices: C.donViPhatHanh },
-  { key: 'donViSoHuu', label: 'Đơn vị sở hữu (metadata)', type: 'select', choices: C.capLuuTru },
+  { key: 'donViSoHuu', label: 'Cấp lưu trữ (metadata)', type: 'select', choices: C.capLuuTru },
   { key: 'capLuuTru', label: 'Cấp lưu trữ — folder lưu file', type: 'select', choices: [], required: true },
   { key: 'nguonMetadata', label: 'Nguồn metadata', type: 'select', choices: C.nguonMetadata },
   { key: 'metadataConfidence', label: 'Độ tin cậy metadata', type: 'select', choices: C.metadataConfidence },

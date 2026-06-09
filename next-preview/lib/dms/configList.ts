@@ -113,13 +113,18 @@ export async function upsertConfigRecord(
   json: string,
   updatedBy: string
 ): Promise<ConfigRecord> {
-  const listId = await resolveConfigListId(accessToken);
+  let listId = await resolveConfigListId(accessToken);
   if (!listId) {
-    throw new ConfigListError(
-      `SharePoint list "${CONFIG_LIST_NAME}" chưa tồn tại. Tạo list (genericList) với các cột: ` +
-        `Title, ConfigKey (text), ConfigJson (multi-line text), UpdatedAt (text), UpdatedBy (text), IsActive (yes/no).`,
-      409
-    );
+    // Tự seed list DMSConfig khi chưa có (admin save → list được tạo + lưu luôn).
+    const prov = await provisionConfigList(accessToken);
+    if (!prov.ok) {
+      throw new ConfigListError(prov.error ?? `Không tạo được list "${CONFIG_LIST_NAME}".`, 409);
+    }
+    clearConfigListCache();
+    listId = await resolveConfigListId(accessToken);
+    if (!listId) {
+      throw new ConfigListError(`List "${CONFIG_LIST_NAME}" chưa sẵn sàng sau khi tạo.`, 502);
+    }
   }
   const site = await resolveSiteId(accessToken);
   const updatedAt = new Date().toISOString();
@@ -154,6 +159,105 @@ export async function upsertConfigRecord(
     }),
   });
   return { itemId: created.id, configKey, json, updatedAt, updatedBy, isActive: true };
+}
+
+// ── Provisioning (seed list DMSConfig) ─────────────────────────────────────────
+type ColKind = 'text' | 'note' | 'boolean';
+// KHÔNG gồm Title (cột hệ thống tự có khi tạo list).
+const CONFIG_COLUMNS: { name: string; kind: ColKind; indexed?: boolean }[] = [
+  { name: 'ConfigKey', kind: 'text', indexed: true },
+  { name: 'ConfigJson', kind: 'note' },
+  { name: 'UpdatedAt', kind: 'text' },
+  { name: 'UpdatedBy', kind: 'text' },
+  { name: 'IsActive', kind: 'boolean' },
+];
+function toGraphColumn(c: { name: string; kind: ColKind; indexed?: boolean }): Record<string, unknown> {
+  const col: Record<string, unknown> = { name: c.name };
+  if (c.indexed) col.indexed = true;
+  if (c.kind === 'note') col.text = { allowMultipleLines: true };
+  else if (c.kind === 'boolean') col.boolean = {};
+  else col.text = {};
+  return col;
+}
+
+export interface ProvisionResult {
+  ok: boolean;
+  created: boolean;
+  validated: boolean;
+  listName: string;
+  addedColumns?: string[];
+  missingColumns?: string[];
+  error?: string;
+}
+
+/**
+ * Tạo list DMSConfig (genericList) với cột chuẩn nếu chưa có; nếu có thì validate + thêm cột thiếu.
+ * Cần app permission Sites.Manage.All/FullControl để tạo list (403 → trả lỗi rõ ràng, không throw).
+ */
+export async function provisionConfigList(accessToken: string): Promise<ProvisionResult> {
+  const listName = CONFIG_LIST_NAME;
+  try {
+    const site = await resolveSiteId(accessToken);
+    const resp = await graphFetch<{ value: { id: string; displayName: string; name?: string }[] }>(
+      `/sites/${site.id}/lists?$select=id,displayName,name&$top=200`,
+      { accessToken }
+    );
+    const norm = (s: string): string => s.trim().toLowerCase();
+    const want = norm(listName);
+    const existing = (resp.value ?? []).find((l) => norm(l.displayName) === want || norm(l.name ?? '') === want);
+
+    if (!existing) {
+      await graphFetch(`/sites/${site.id}/lists`, {
+        accessToken,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          displayName: listName,
+          list: { template: 'genericList' },
+          columns: CONFIG_COLUMNS.map(toGraphColumn),
+        }),
+      });
+      _configListId = undefined; // reset cache để resolve lại
+      return { ok: true, created: true, validated: true, listName, addedColumns: CONFIG_COLUMNS.map((c) => c.name) };
+    }
+
+    const cols = await graphFetch<{ value: { name: string }[] }>(
+      `/sites/${site.id}/lists/${existing.id}/columns?$select=name&$top=200`,
+      { accessToken }
+    );
+    const have = new Set((cols.value ?? []).map((c) => c.name.toLowerCase()));
+    const missing = CONFIG_COLUMNS.filter((c) => !have.has(c.name.toLowerCase()));
+    const added: string[] = [];
+    for (const c of missing) {
+      await graphFetch(`/sites/${site.id}/lists/${existing.id}/columns`, {
+        accessToken,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(toGraphColumn(c)),
+      })
+        .then(() => added.push(c.name))
+        .catch(() => undefined);
+    }
+    _configListId = existing.id;
+    const stillMissing = missing.filter((c) => !added.includes(c.name)).map((c) => c.name);
+    return {
+      ok: stillMissing.length === 0,
+      created: false,
+      validated: stillMissing.length === 0,
+      listName,
+      missingColumns: missing.map((c) => c.name),
+      addedColumns: added,
+      ...(stillMissing.length ? { error: `Còn thiếu cột: ${stillMissing.join(', ')}` } : {}),
+    };
+  } catch (e) {
+    const msg =
+      e instanceof GraphError
+        ? `Graph ${e.status} ${e.statusText}.${e.status === 403 ? ' Cần app permission Sites.Manage.All/FullControl để tạo list.' : ''}`
+        : e instanceof Error
+          ? e.message
+          : String(e);
+    return { ok: false, created: false, validated: false, listName, error: msg };
+  }
 }
 
 export { GraphError };

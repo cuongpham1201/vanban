@@ -30,7 +30,7 @@ function InfoPane({ doc }: { doc: DetailDoc }): React.ReactElement {
       <Row k="Trạng thái" v={<span className={`badge ${doc.statusClass}`}>{doc.statusLabel}</span>} />
       <Row k="Mức độ bảo mật" v={<span className={`badge ${doc.baomatClass}`}><span className="dot" />{doc.baomat}</span>} />
       <Row k="Đơn vị soạn thảo" v={doc.donViPH} />
-      <Row k="Đơn vị sở hữu" v={doc.donViSH} />
+      <Row k="Cấp lưu trữ" v={doc.donViSH} />
 
       <div className="sec-block" style={{ marginTop: 16 }}>
         <div className="h">Metadata V2 · Phân loại</div>
