@@ -6,6 +6,7 @@
 
 import { createNotification, BROADCAST_EMAIL } from './notificationService';
 import { sendEmailForEvent } from './channels/emailChannel';
+import { sendTeamsActivityForEvent } from './channels/teamsActivityChannel';
 import { NotificationType } from './types';
 
 export interface DmsEvent {
@@ -67,4 +68,20 @@ export async function dispatchNotification(ev: DmsEvent): Promise<void> {
     newDocumentNumber: ev.newDocumentNumber,
     eventKey: ev.eventKey,
   });
+
+  // 3) Teams Activity Feed channel (best-effort — KHÔNG throw, không làm hỏng upload/replace/edit).
+  //    Phase 1: gửi tới actor (hoặc DMS_TEAMS_ACTIVITY_TEST_RECIPIENT), KHÔNG broadcast.
+  try {
+    await sendTeamsActivityForEvent({
+      type: ev.type,
+      actorEmail: ev.actorEmail,
+      documentId: ev.documentId,
+      documentNumber: ev.documentNumber,
+      documentTitle: ev.documentTitle,
+      eventKey: ev.eventKey,
+    });
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('[dms-teams-activity] dispatch failed:', e instanceof Error ? e.message : String(e));
+  }
 }
