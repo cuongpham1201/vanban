@@ -4,13 +4,16 @@
 // Mọi channel BEST-EFFORT: lỗi 1 channel KHÔNG ảnh hưởng channel khác hay luồng upload/replace/edit.
 // (Phase 3 Teams / Phase 4 Activity Feed sẽ thêm channel tại đây.)
 
-import { createNotification } from './notificationService';
+import { createNotification, BROADCAST_EMAIL } from './notificationService';
 import { sendEmailForEvent } from './channels/emailChannel';
 import { NotificationType } from './types';
 
 export interface DmsEvent {
   type: NotificationType;
   actorEmail: string;
+  // Recipient của WEB notification. Mặc định = actorEmail (cá nhân).
+  // Sự kiện văn bản (tạo/upload/cập nhật) set = BROADCAST_EMAIL ("__ALL__") → mọi user thấy chuông.
+  recipientEmail?: string;
   documentId: string;
   documentNumber?: string;
   documentTitle?: string;
@@ -31,10 +34,11 @@ function docUrl(documentId: string): string {
 }
 
 export async function dispatchNotification(ev: DmsEvent): Promise<void> {
-  // 1) Web notification (recipient = actor — Phase 1 strategy).
+  // 1) Web notification. recipientEmail = BROADCAST_EMAIL ("__ALL__") → 1 item dùng chung cho mọi user;
+  //    nếu không set → cá nhân (actor). createdByEmail luôn là actor (người gây ra sự kiện).
   try {
     await createNotification({
-      userEmail: ev.actorEmail,
+      userEmail: ev.recipientEmail ?? ev.actorEmail,
       type: ev.type,
       title: ev.title,
       message: ev.message,

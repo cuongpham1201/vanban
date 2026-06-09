@@ -3,6 +3,7 @@
 // Mọi hàm an toàn (best-effort) — KHÔNG throw (dispatcher tự nuốt lỗi từng channel).
 
 import { dispatchNotification } from './dispatcher';
+import { BROADCAST_EMAIL } from './notificationService';
 
 interface DocCtx {
   actorEmail: string;
@@ -19,6 +20,7 @@ export async function notifyNewDocument(ctx: DocCtx): Promise<void> {
   await dispatchNotification({
     type: 'NEW_DOCUMENT',
     actorEmail: ctx.actorEmail,
+    recipientEmail: BROADCAST_EMAIL, // broadcast: mọi user thấy chuông
     documentId: ctx.documentId,
     documentNumber: ctx.documentNumber,
     documentTitle: ctx.documentTitle,
@@ -39,6 +41,7 @@ export async function notifyDocumentReplaced(
   await dispatchNotification({
     type: 'DOCUMENT_REPLACED',
     actorEmail: ctx.actorEmail,
+    recipientEmail: BROADCAST_EMAIL, // broadcast
     documentId: ctx.documentId,
     documentNumber: newNo || ctx.documentNumber,
     documentTitle: ctx.documentTitle,
@@ -59,6 +62,7 @@ export async function notifyDocumentUpdated(ctx: DocCtx & { changedFields?: stri
   await dispatchNotification({
     type: 'DOCUMENT_UPDATED',
     actorEmail: ctx.actorEmail,
+    recipientEmail: BROADCAST_EMAIL, // broadcast (CHỈ web — email tự loại type này)
     documentId: ctx.documentId,
     documentNumber: ctx.documentNumber,
     documentTitle: ctx.documentTitle,
