@@ -8,7 +8,7 @@ import { isExpired } from '@dms/utils/standardization';
 import {
   FACET_DEFS, FacetDef, matchesKeyword, toSearchDoc, SearchDoc,
   SortKey, SORT_OPTIONS, DEFAULT_SORT, sortDocuments,
-  CODE_SORTED_FACETS, compareByBracketCode,
+  SPECIAL_SORTED_FACETS, compareFacetItems,
 } from './searchTypes';
 import { loadFilterConfig, subscribeFilterConfig, fetchFilterConfig } from '@/lib/dms/filterConfig';
 import SearchSubBar, { ViewMode } from './SearchSubBar';
@@ -241,9 +241,10 @@ export default function SearchCenterPage(): React.ReactElement {
           counts.set(val, (counts.get(val) ?? 0) + 1);
         }
         const items = Array.from(counts.entries()).map(([value, count]) => ({ value, count }));
-        // #37: Cấp lưu trữ (DonViSoHuu) sort theo mã [00]→[99]; còn lại theo count giảm dần.
-        if (CODE_SORTED_FACETS.has(def.key)) {
-          items.sort((a, b) => compareByBracketCode(a.value, b.value));
+        // FIX B: facet đặc biệt (Cấp lưu trữ/Loại tài liệu/Năm/Nhóm) sort theo quy tắc riêng;
+        // còn lại theo count giảm dần. Áp dụng chung cho left panel · mobile drawer · quick dropdown.
+        if (SPECIAL_SORTED_FACETS.has(def.key)) {
+          items.sort((a, b) => compareFacetItems(def.key, a.value, b.value));
         } else {
           items.sort((a, b) => b.count - a.count || a.value.localeCompare(b.value, 'vi'));
         }

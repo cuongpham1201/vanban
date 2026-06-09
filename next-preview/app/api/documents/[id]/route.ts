@@ -73,9 +73,8 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
   const session = await getServerSession(authOptions);
   try {
     assertCanWriteDms(session);
-  } catch (e) {
-    const err = e as DmsWriteError;
-    return NextResponse.json({ ok: false, error: err.message }, { status: err.status ?? 403 });
+  } catch {
+    return NextResponse.json({ ok: false, error: 'Không có quyền ghi DMS.' }, { status: 403 });
   }
   const actor = (session?.user?.email as string | undefined) ?? 'unknown';
   try {

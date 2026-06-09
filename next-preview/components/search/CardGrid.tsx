@@ -81,7 +81,14 @@ export default function CardGrid({
                   {d.title}
                 </div>
                 <div className="row between">
-                  <span className="t-2xs mut">{d.donViSH}</span>
+                  {/* #41/FIX C: Cấp lưu trữ · Loại tài liệu · Ngày ban hành (có fallback, bỏ badge bảo mật). */}
+                  <span className="t-2xs mut" style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {[
+                      d.donViSH !== '—' ? d.donViSH : '(Chưa phân loại)',
+                      d.loaiTL !== '—' ? d.loaiTL : '(Chưa có loại)',
+                      d.ngayBH || '—',
+                    ].join(' · ')}
+                  </span>
                   <span className={`badge ${d.statusClass}`}>{d.statusLabel}</span>
                 </div>
               </div>

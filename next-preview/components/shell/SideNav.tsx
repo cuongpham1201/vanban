@@ -4,6 +4,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Icon, { IconName } from './Icon';
+import { useDmsWrite } from '@/lib/client/useDmsWrite';
 
 // Điều hướng trái (sidenav) — port từ dms-design/assets/shell.js.
 // Route đặt dưới app/(dms)/* để chạy SONG SONG UI cũ (ở "/"). Phase 2-7 bổ sung trang.
@@ -40,18 +41,9 @@ export default function SideNav({
   onNavigate?: () => void;
 } = {}): React.ReactElement {
   const pathname = usePathname() || '/dashboard';
-  // BUG#16: menu "Quản trị" chỉ hiện khi canWrite (lấy từ write-status, không hardcode email).
-  const [canWrite, setCanWrite] = React.useState(false);
-  React.useEffect(() => {
-    let alive = true;
-    fetch('/api/dms/write-status', { credentials: 'same-origin' })
-      .then((r) => r.json())
-      .then((j) => alive && setCanWrite(!!j?.canWrite))
-      .catch(() => undefined);
-    return () => {
-      alive = false;
-    };
-  }, []);
+  // #38/#16: menu "Tác vụ" (Tải lên/Thay thế) và "Hệ thống" (Quản trị) CHỈ hiện khi có DMS write.
+  // Nguồn quyền dùng chung qua useDmsWrite() — không hardcode, không lặp logic.
+  const canWrite = useDmsWrite() === true;
 
   const isActive = (href: string): boolean => {
     const base = href.split('?')[0];
@@ -74,8 +66,12 @@ export default function SideNav({
   return (
     <aside className={`sidenav scrollbar${open ? ' open' : ''}`}>
       {MAIN.map(item)}
-      <div className="nav-sec">Tác vụ</div>
-      {TASKS.map(item)}
+      {canWrite && (
+        <>
+          <div className="nav-sec">Tác vụ</div>
+          {TASKS.map(item)}
+        </>
+      )}
       <div style={{ flex: 1 }} />
       {canWrite && (
         <>

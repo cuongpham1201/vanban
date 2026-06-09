@@ -31,9 +31,8 @@ export async function POST(req: Request): Promise<NextResponse> {
   const session = await getServerSession(authOptions);
   try {
     assertCanWriteDms(session);
-  } catch (e) {
-    const err = e as DmsWriteError;
-    return NextResponse.json({ ok: false, error: err.message }, { status: err.status ?? 403 });
+  } catch {
+    return NextResponse.json({ ok: false, error: 'Không có quyền ghi DMS.' }, { status: 403 });
   }
   const actor = (session?.user?.email as string | undefined) ?? 'unknown';
 

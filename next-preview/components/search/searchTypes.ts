@@ -164,28 +164,94 @@ export const FACET_DEFS: FacetDef[] = [
   { key: 'hasEditableSource', label: 'Bản mềm', open: false, get: (d) => (d.editableSource ? 'Có bản mềm' : 'Thiếu bản mềm') },
 ];
 
-// ── Facet item ordering (BUG#37) ─────────────────────────────────────────────
-// Một số facet (vd Cấp lưu trữ = DonViSoHuu) phải sort theo MÃ ĐƠN VỊ trong [..] tăng dần
-// ([00] → [99]), KHÔNG theo số lượng. Value không có pattern [] đẩy xuống cuối.
+// ── Facet item ordering (BUG#37 + FIX B) ─────────────────────────────────────
+// Một số facet KHÔNG sort theo count mà theo quy tắc riêng. Dùng chung cho left panel,
+// mobile drawer, quick dropdown (đều đọc cùng facetGroups). Giá trị "(Chưa có)" = NA.
+const FACET_NA = NA; // '(Chưa có)'
 
-/** Parse mã trong [..] đầu chuỗi: "[18] Phòng Cơ Điện" → 18. null nếu không có. */
-export function bracketCode(value: string): number | null {
-  const m = /^\s*\[(\d+)\]/.exec(value ?? '');
-  return m ? parseInt(m[1], 10) : null;
+/** Mã cấp lưu trữ trong [..]: "[06.01] …" → [6,1]; "[06]" → [6,0]. null nếu không có. */
+export function storageCodeKey(value: string): [number, number] | null {
+  const m = /^\s*\[(\d+)(?:\.(\d+))?\]/.exec(value ?? '');
+  return m ? [parseInt(m[1], 10), m[2] ? parseInt(m[2], 10) : 0] : null;
 }
 
-/** So sánh 2 value facet theo mã [..] ASC; không có mã → cuối (rồi theo tên vi). */
-export function compareByBracketCode(a: string, b: string): number {
-  const na = bracketCode(a);
-  const nb = bracketCode(b);
-  if (na !== null && nb !== null) return na - nb || a.localeCompare(b, 'vi');
-  if (na !== null) return -1; // a có mã → đứng trước
-  if (nb !== null) return 1; // b có mã → đứng trước
+function cmpStorage(a: string, b: string): number {
+  const ca = storageCodeKey(a);
+  const cb = storageCodeKey(b);
+  if (ca && cb) return ca[0] - cb[0] || ca[1] - cb[1] || a.localeCompare(b, 'vi');
+  if (ca) return -1; // có mã → trước
+  if (cb) return 1;
+  return a.localeCompare(b, 'vi'); // cả hai không mã → theo tên
+}
+
+function cmpAlphaNaLast(a: string, b: string): number {
+  if (a === FACET_NA) return b === FACET_NA ? 0 : 1; // "(Chưa có)" luôn cuối
+  if (b === FACET_NA) return -1;
   return a.localeCompare(b, 'vi');
 }
 
-/** Facet cần sort theo mã đơn vị (thay vì theo count). */
-export const CODE_SORTED_FACETS: ReadonlySet<string> = new Set(['donViSoHuu']);
+function cmpYearDesc(a: string, b: string): number {
+  const ya = /^\d{3,4}$/.test(a) ? parseInt(a, 10) : null;
+  const yb = /^\d{3,4}$/.test(b) ? parseInt(b, 10) : null;
+  if (ya !== null && yb !== null) return yb - ya; // năm giảm dần
+  if (ya !== null) return -1; // năm hợp lệ trước
+  if (yb !== null) return 1;
+  return a.localeCompare(b, 'vi'); // "(Chưa có)"/không hợp lệ → cuối
+}
+
+// Nhóm tài liệu — thứ tự nghiệp vụ cố định (không theo count). Khoan dung dấu gạch (- – —),
+// hoa thường, khoảng trắng thừa. Giá trị lạ → sau (alpha VI); "(Chưa có)" → cuối cùng.
+const NHOM_ORDER = [
+  'Chính sách – Định hướng',
+  'Quy chế – Quy định – Quy trình – Hướng dẫn',
+  'Tổ chức – Nhân sự',
+  'Điều hành – Tác nghiệp',
+  'Hợp đồng – Văn bản pháp lý',
+  'Văn bản đến',
+  'Văn bản đi',
+  'Hết hiệu lực',
+];
+function normNhom(s: string): string {
+  return (s ?? '')
+    .toLowerCase()
+    .replace(/[–—]/g, '-') // mọi dạng gạch → '-'
+    .replace(/\s*-\s*/g, '-') // bỏ khoảng trắng quanh gạch
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+const NHOM_INDEX = new Map<string, number>(NHOM_ORDER.map((l, i) => [normNhom(l), i]));
+function cmpNhom(a: string, b: string): number {
+  if (a === FACET_NA) return b === FACET_NA ? 0 : 1;
+  if (b === FACET_NA) return -1;
+  const ia = NHOM_INDEX.has(normNhom(a)) ? (NHOM_INDEX.get(normNhom(a)) as number) : Number.POSITIVE_INFINITY;
+  const ib = NHOM_INDEX.has(normNhom(b)) ? (NHOM_INDEX.get(normNhom(b)) as number) : Number.POSITIVE_INFINITY;
+  if (ia !== ib) return ia - ib;
+  return a.localeCompare(b, 'vi'); // cả hai lạ → alpha
+}
+
+/** Facet có quy tắc sort riêng (không dùng count). */
+export const SPECIAL_SORTED_FACETS: ReadonlySet<string> = new Set([
+  'donViSoHuu',
+  'loaiTaiLieu',
+  'namBanHanh',
+  'nhomTaiLieu',
+]);
+
+/** So sánh item facet theo quy tắc của từng facet (xem SPECIAL_SORTED_FACETS). */
+export function compareFacetItems(facetKey: string, a: string, b: string): number {
+  switch (facetKey) {
+    case 'donViSoHuu':
+      return cmpStorage(a, b);
+    case 'loaiTaiLieu':
+      return cmpAlphaNaLast(a, b);
+    case 'namBanHanh':
+      return cmpYearDesc(a, b);
+    case 'nhomTaiLieu':
+      return cmpNhom(a, b);
+    default:
+      return 0;
+  }
+}
 
 // ── Sort (BUG#19) ──────────────────────────────────────────────────────────
 export type SortKey =

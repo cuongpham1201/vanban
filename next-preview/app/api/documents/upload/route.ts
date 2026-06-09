@@ -46,9 +46,9 @@ export async function POST(req: Request): Promise<NextResponse> {
   // 1+2. Guard.
   try {
     assertCanWriteDms(session);
-  } catch (e) {
-    const err = e as DmsWriteError;
-    return NextResponse.json({ ok: false, error: err.message }, { status: err.status ?? 403 });
+  } catch {
+    // FIX A: chuẩn hóa 403 cho mọi trường hợp không đủ quyền ghi (dùng assertCanWriteDms — nguồn duy nhất).
+    return NextResponse.json({ ok: false, error: 'Không có quyền ghi DMS.' }, { status: 403 });
   }
   const email = session!.user!.email as string;
 

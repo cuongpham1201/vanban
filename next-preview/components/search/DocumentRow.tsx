@@ -86,26 +86,13 @@ export default function DocumentRow({
           )}
         </div>
       </div>
+      {/* #41/FIX C: strip = Cấp lưu trữ · Loại tài liệu · Ngày ban hành (có fallback). Bỏ badge bảo mật. */}
       <div className="dmeta">
         <span>
-          {/* #35: hiển thị Cấp lưu trữ (DonViSoHuu), KHÔNG dùng Đơn vị soạn thảo (donViPH). */}
-          <b>{doc.donViSH}</b>
+          <b>{doc.donViSH !== '—' ? doc.donViSH : '(Chưa phân loại)'}</b>
         </span>
-        {doc.nguoiKy !== '—' && (
-          <span>
-            Ký: <b>{doc.nguoiKy}</b>
-          </span>
-        )}
-        <span>{doc.ngayBH}</span>
-        <span className={`badge ${doc.baomatClass}`}>
-          <span className="dot" />
-          {doc.baomat}
-        </span>
-        {doc.tags.map((t) => (
-          <span className="tag" key={t}>
-            #{t}
-          </span>
-        ))}
+        <span>{doc.loaiTL !== '—' ? doc.loaiTL : '(Chưa có loại)'}</span>
+        <span>{doc.ngayBH || '—'}</span>
       </div>
     </div>
   );

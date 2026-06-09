@@ -5,6 +5,7 @@ import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import Icon from './Icon';
 import NotificationBell from './NotificationBell';
 import UserMenu from './UserMenu';
+import { useDmsWrite } from '@/lib/client/useDmsWrite';
 
 // Thanh trên cùng (appbar). Global search là input thật (id="global-search"):
 //  - Ctrl/Cmd+K focus vào nó (xem GlobalShortcuts) khi không ở /search.
@@ -14,6 +15,7 @@ export default function AppBar({ onMenu }: { onMenu?: () => void } = {}): React.
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const canWrite = useDmsWrite() === true; // #39: chỉ hiện icon Tải lên khi có DMS write
   const onSearchPage = pathname === '/search';
   const urlQ = searchParams.get('q') ?? '';
   const [q, setQ] = React.useState('');
@@ -59,9 +61,11 @@ export default function AppBar({ onMenu }: { onMenu?: () => void } = {}): React.
         <span className="kbd">Ctrl K</span>
       </div>
       <div className="spacer" />
-      <div className="iconbtn" title="Tải lên" onClick={() => router.push('/upload')} role="button" tabIndex={0}>
-        <Icon name="upload" />
-      </div>
+      {canWrite && (
+        <div className="iconbtn" title="Tải lên" onClick={() => router.push('/upload')} role="button" tabIndex={0}>
+          <Icon name="upload" />
+        </div>
+      )}
       <NotificationBell />
       <div className="iconbtn" title="Trợ giúp">
         <Icon name="help" />
