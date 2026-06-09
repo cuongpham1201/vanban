@@ -88,7 +88,8 @@ export default function DocumentRow({
       </div>
       <div className="dmeta">
         <span>
-          <b>{doc.donViPH}</b>
+          {/* #35: hiển thị Cấp lưu trữ (DonViSoHuu), KHÔNG dùng Đơn vị soạn thảo (donViPH). */}
+          <b>{doc.donViSH}</b>
         </span>
         {doc.nguoiKy !== '—' && (
           <span>

@@ -83,14 +83,25 @@ export default function FilterManagerTab(): React.ReactElement {
     setProvisionMsg(null);
     try {
       const r = await fetch('/api/admin/provision-config', { method: 'POST', credentials: 'same-origin' });
-      const j = (await r.json()) as { ok: boolean; created?: boolean; addedColumns?: string[]; error?: string };
-      setProvisionMsg(
-        j.ok
-          ? `${j.created ? 'Đã tạo list DMSConfig' : 'List DMSConfig đã sẵn sàng'}${j.addedColumns?.length ? ` (cột: ${j.addedColumns.join(', ')})` : ''}.`
-          : `Lỗi: ${j.error ?? ''}`
-      );
+      // #36: đọc text rồi parse an toàn — KHÔNG res.json() mù (proxy có thể trả HTML 502).
+      const raw = await r.text();
+      let j: { ok?: boolean; created?: boolean; addedColumns?: string[]; error?: string } | null = null;
+      try {
+        j = raw ? (JSON.parse(raw) as typeof j) : null;
+      } catch {
+        j = null;
+      }
+      if (!j) {
+        setProvisionMsg(`Không tạo được list cấu hình (HTTP ${r.status}). Kiểm tra log server.`);
+      } else if (j.ok) {
+        setProvisionMsg(
+          `${j.created ? 'Đã tạo list DMSConfig' : 'List DMSConfig đã sẵn sàng'}${j.addedColumns?.length ? ` (cột: ${j.addedColumns.join(', ')})` : ''}.`
+        );
+      } else {
+        setProvisionMsg(`Không tạo được list cấu hình: ${j.error ?? `HTTP ${r.status}`}. Kiểm tra log server.`);
+      }
     } catch (e) {
-      setProvisionMsg(`Lỗi: ${e instanceof Error ? e.message : String(e)}`);
+      setProvisionMsg(`Không tạo được list cấu hình. Kiểm tra log server. (${e instanceof Error ? e.message : String(e)})`);
     } finally {
       setProvisioning(false);
     }
