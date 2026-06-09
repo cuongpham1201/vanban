@@ -2,7 +2,7 @@
   "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.16/MicrosoftTeams.schema.json",
   "manifestVersion": "1.16",
   "id": "b7c24a20-3b43-4fb7-86bc-1a0e4e4e96de",
-  "version": "1.0.13",
+  "version": "1.0.14",
   "packageName": "com.biahalong.vanbandieuhanh",
   "developer": {
     "name": "Bia Hạ Long",
@@ -25,7 +25,7 @@
   "accentColor": "#0038A8",
   "configurableTabs": [
     {
-      "configurationUrl": "https://vanban.biahalong.com",
+      "configurationUrl": "https://vanban.biahalong.com/teams/config",
       "canUpdateConfiguration": true,
       "scopes": [
         "team"
