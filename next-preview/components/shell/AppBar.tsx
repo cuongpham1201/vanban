@@ -4,6 +4,7 @@ import * as React from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import Icon from './Icon';
 import NotificationBell from './NotificationBell';
+import UserMenu from './UserMenu';
 
 // Thanh trên cùng (appbar). Global search là input thật (id="global-search"):
 //  - Ctrl/Cmd+K focus vào nó (xem GlobalShortcuts) khi không ở /search.
@@ -65,9 +66,7 @@ export default function AppBar({ onMenu }: { onMenu?: () => void } = {}): React.
       <div className="iconbtn" title="Trợ giúp">
         <Icon name="help" />
       </div>
-      <div className="avatar" title="Người dùng">
-        NL
-      </div>
+      <UserMenu />
     </header>
   );
 }
