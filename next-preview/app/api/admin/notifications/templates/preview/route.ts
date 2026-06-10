@@ -10,6 +10,7 @@ import {
   NotificationTemplateContext,
   SAMPLE_CONTEXT,
 } from '@/lib/dms/notifications/templates/templateConstants';
+import { failJson } from '@/lib/server/apiResponse';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,7 +48,11 @@ export async function POST(req: Request): Promise<NextResponse> {
     return NextResponse.json({ ok: false, error: check.error }, { status: 400 });
   }
 
-  const ctx: NotificationTemplateContext = { ...SAMPLE_CONTEXT, ...(body.context ?? {}) };
-  const rendered = renderTemplatePreview(tpl, channel, eventType, ctx, { html: channel === 'email' });
-  return NextResponse.json({ ok: true, rendered });
+  try {
+    const ctx: NotificationTemplateContext = { ...SAMPLE_CONTEXT, ...(body.context ?? {}) };
+    const rendered = renderTemplatePreview(tpl, channel, eventType, ctx, { html: channel === 'email' });
+    return NextResponse.json({ ok: true, rendered });
+  } catch (e) {
+    return failJson('templates/preview', 'Render preview thất bại.', { cause: e, detail: e instanceof Error ? e.message : String(e) });
+  }
 }

@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import Icon from '@/components/shell/Icon';
+import { safeJsonFetch } from '@/lib/client/safeJsonFetch';
 
 // Tab Hệ thống — provisioning + seed + health cho DMS Notifications (mô hình Approval BHL).
 interface ProvisionResult {
@@ -34,14 +35,9 @@ export default function SystemTab(): React.ReactElement {
 
   const loadHealth = React.useCallback(async () => {
     setLoadingHealth(true);
-    try {
-      const r = await fetch('/api/admin/notifications/health', { credentials: 'same-origin', cache: 'no-store' });
-      setHealth(await r.json());
-    } catch (e) {
-      setHealth({ ok: false, error: e instanceof Error ? e.message : String(e) });
-    } finally {
-      setLoadingHealth(false);
-    }
+    const { data, parseError } = await safeJsonFetch<Health>('/api/admin/notifications/health', { cache: 'no-store' });
+    setHealth(parseError ? { ok: false, error: parseError } : data ?? { ok: false, error: 'Không có dữ liệu.' });
+    setLoadingHealth(false);
   }, []);
 
   React.useEffect(() => {
@@ -51,30 +47,24 @@ export default function SystemTab(): React.ReactElement {
   const onProvision = async (): Promise<void> => {
     setProvisioning(true);
     setProvision(null);
-    try {
-      const r = await fetch('/api/admin/provision-notifications', { method: 'POST', credentials: 'same-origin' });
-      setProvision(await r.json());
-      void loadHealth();
-    } catch (e) {
-      setProvision({ ok: false, error: e instanceof Error ? e.message : String(e) });
-    } finally {
-      setProvisioning(false);
-    }
+    const { data, parseError } = await safeJsonFetch<ProvisionResult>('/api/admin/provision-notifications', { method: 'POST' });
+    setProvision(parseError ? { ok: false, error: parseError } : data ?? { ok: false, error: 'Không có phản hồi.' });
+    void loadHealth();
+    setProvisioning(false);
   };
 
   const onSeed = async (): Promise<void> => {
     setSeeding(true);
     setSeedMsg(null);
-    try {
-      const r = await fetch('/api/admin/seed-notifications', { method: 'POST', credentials: 'same-origin' });
-      const j = (await r.json()) as { ok: boolean; created?: number; error?: string };
-      setSeedMsg(j.ok ? `Đã tạo ${j.created} thông báo mẫu. Mở chuông để kiểm tra.` : `Lỗi: ${j.error ?? ''}`);
-      void loadHealth();
-    } catch (e) {
-      setSeedMsg(`Lỗi: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setSeeding(false);
-    }
+    const { data, parseError } = await safeJsonFetch<{ ok: boolean; created?: number; error?: string }>(
+      '/api/admin/seed-notifications',
+      { method: 'POST' }
+    );
+    if (parseError) setSeedMsg(`Lỗi: ${parseError}`);
+    else if (data?.ok) setSeedMsg(`Đã tạo ${data.created} thông báo mẫu. Mở chuông để kiểm tra.`);
+    else setSeedMsg(`Lỗi: ${data?.error ?? 'Không tạo được.'}`);
+    void loadHealth();
+    setSeeding(false);
   };
 
   const badge = (label: string, ok: boolean | undefined): React.ReactElement => (

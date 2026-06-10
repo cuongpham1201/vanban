@@ -6,6 +6,7 @@ import { getAppOnlyGraphToken } from '@/lib/graph/appToken';
 import { ConfigListError, GraphError } from '@/lib/dms/configList';
 import { resetNotificationTemplate } from '@/lib/dms/notifications/templates/notificationTemplateService';
 import { isTemplateChannel, isTemplateEvent } from '@/lib/dms/notifications/templates/templateConstants';
+import { failJson, isPermissionError } from '@/lib/server/apiResponse';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +22,7 @@ export async function POST(_req: Request, { params }: Ctx): Promise<NextResponse
     assertCanWriteDms(session);
   } catch (e) {
     const err = e as DmsWriteError;
-    return NextResponse.json({ ok: false, error: err.message }, { status: err.status ?? 403 });
+    return failJson('templates/[event]/[channel]/reset', err.message, { status: err.status ?? 403, cause: err });
   }
   if (!isTemplateEvent(params.eventType) || !isTemplateChannel(params.channel)) {
     return NextResponse.json({ ok: false, error: 'eventType hoặc channel không hợp lệ.' }, { status: 400 });
@@ -34,12 +35,12 @@ export async function POST(_req: Request, { params }: Ctx): Promise<NextResponse
     return NextResponse.json({ ok: true, effective: def });
   } catch (err) {
     if (err instanceof ConfigListError) {
-      return NextResponse.json({ ok: false, error: err.message }, { status: err.status });
+      return failJson('templates/[event]/[channel]/reset', err.message, { status: err.status, cause: err });
     }
     if (err instanceof GraphError) {
-      const status = err.status >= 400 && err.status < 600 ? err.status : 502;
-      return NextResponse.json({ ok: false, error: `Reset template thất bại (Graph ${err.status}).` }, { status });
+      const msg = isPermissionError(err.message) ? 'Không đủ quyền reset template trên SharePoint.' : `Reset template thất bại (Graph ${err.status}).`;
+      return failJson('templates/[event]/[channel]/reset', msg, { detail: err.message, cause: err });
     }
-    return NextResponse.json({ ok: false, error: err instanceof Error ? err.message : String(err) }, { status: 502 });
+    return failJson('templates/[event]/[channel]/reset', 'Reset template thất bại.', { cause: err, detail: err instanceof Error ? err.message : String(err) });
   }
 }

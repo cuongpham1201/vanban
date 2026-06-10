@@ -6,11 +6,13 @@ import { getAppOnlyGraphTokenReadOnly } from '@/lib/graph/appToken';
 import { inspectNotificationsList } from '@/lib/dms/notifications/provisionNotifications';
 import { getUnreadCount } from '@/lib/dms/notifications/notificationService';
 import { getEmailConfig } from '@/lib/dms/notifications/channels/emailChannel';
+import { failJson } from '@/lib/server/apiResponse';
 
 export const dynamic = 'force-dynamic';
 
 // GET /api/admin/notifications/health — chẩn đoán hệ thống thông báo. CHỈ admin (allowlist). Read-only.
 export async function GET(): Promise<NextResponse> {
+ try {
   const session = await getServerSession(authOptions);
   const email = session?.user?.email;
   if (!email) {
@@ -56,4 +58,7 @@ export async function GET(): Promise<NextResponse> {
     graphReady,
     ...(inspectError ? { inspectError } : {}),
   });
+ } catch (e) {
+    return failJson('notifications/health', 'Không lấy được tình trạng hệ thống thông báo.', { cause: e, detail: e instanceof Error ? e.message : String(e) });
+ }
 }

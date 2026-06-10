@@ -16,6 +16,7 @@ import {
   NotificationTemplate,
 } from '@/lib/dms/notifications/templates/templateConstants';
 import { NotificationType } from '@/lib/dms/notifications/types';
+import { failJson, isPermissionError } from '@/lib/server/apiResponse';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,7 +47,7 @@ export async function GET(_req: Request, { params }: Ctx): Promise<NextResponse>
     const result = await getNotificationTemplate(accessToken, valid.eventType, valid.channel);
     return NextResponse.json({ ok: true, ...result });
   } catch (e) {
-    return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : String(e) }, { status: 502 });
+    return failJson('templates/[event]/[channel]:GET', 'Không đọc được template.', { cause: e, detail: e instanceof Error ? e.message : String(e) });
   }
 }
 
@@ -88,12 +89,12 @@ export async function PUT(req: Request, { params }: Ctx): Promise<NextResponse> 
     return NextResponse.json({ ok: true, effective });
   } catch (err) {
     if (err instanceof ConfigListError) {
-      return NextResponse.json({ ok: false, error: err.message }, { status: err.status });
+      return failJson('templates/[event]/[channel]:PUT', err.message, { status: err.status, cause: err });
     }
     if (err instanceof GraphError) {
-      const status = err.status >= 400 && err.status < 600 ? err.status : 502;
-      return NextResponse.json({ ok: false, error: `Lưu template thất bại (Graph ${err.status}).` }, { status });
+      const msg = isPermissionError(err.message) ? 'Không đủ quyền lưu template lên SharePoint.' : `Lưu template thất bại (Graph ${err.status}).`;
+      return failJson('templates/[event]/[channel]:PUT', msg, { detail: err.message, cause: err });
     }
-    return NextResponse.json({ ok: false, error: err instanceof Error ? err.message : String(err) }, { status: 502 });
+    return failJson('templates/[event]/[channel]:PUT', 'Lưu template thất bại.', { cause: err, detail: err instanceof Error ? err.message : String(err) });
   }
 }

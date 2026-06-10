@@ -12,13 +12,16 @@ import {
   fetchFilterConfig,
   putFilterConfig,
 } from '@/lib/dms/filterConfig';
+import { safeJsonFetch } from '@/lib/client/safeJsonFetch';
 
 type SaveState = { kind: 'idle' | 'saving' | 'saved' | 'error'; msg?: string };
 
 // Tab 1 — Bộ lọc tìm kiếm. Source of truth = SharePoint (qua API). localStorage chỉ là cache.
 // Đọc API khi mount; mỗi thay đổi (toggle/reorder) PUT lên SharePoint. Chỉ admin/canWrite mới lưu được.
 export default function FilterManagerTab(): React.ReactElement {
-  const [filters, setFilters] = React.useState<FilterConfig[]>(() => loadFilterConfig()); // cache → render tức thì
+  // Khởi tạo DETERMINISTIC = default (KHÔNG đọc localStorage ở initializer → tránh hydration mismatch
+  // #418/#425: server render default, client phải khớp). Cache localStorage nạp sau khi mount (useEffect).
+  const [filters, setFilters] = React.useState<FilterConfig[]>(() => DEFAULT_FILTER_CONFIG.map((d) => ({ ...d })));
   const [dragIdx, setDragIdx] = React.useState<number | null>(null);
   const [overIdx, setOverIdx] = React.useState<number | null>(null);
   const [save, setSave] = React.useState<SaveState>({ kind: 'idle' });
@@ -26,16 +29,17 @@ export default function FilterManagerTab(): React.ReactElement {
   const [provisioning, setProvisioning] = React.useState(false);
   const [provisionMsg, setProvisionMsg] = React.useState<string | null>(null);
 
-  // Mount: đọc cấu hình thật từ SharePoint + trạng thái quyền ghi.
+  // Mount: nạp cache localStorage (sau hydration), rồi đọc cấu hình thật từ SharePoint + quyền ghi.
   React.useEffect(() => {
     let alive = true;
+    const cached = loadFilterConfig(); // an toàn sau mount (đã có window)
+    if (alive) setFilters(cached);
     void fetchFilterConfig().then((r) => {
       if (alive && r.config) setFilters(r.config);
     });
-    fetch('/api/dms/write-status', { credentials: 'same-origin' })
-      .then((res) => res.json())
-      .then((j) => alive && setCanWrite(!!j?.canWrite))
-      .catch(() => alive && setCanWrite(false));
+    void safeJsonFetch<{ canWrite?: boolean }>('/api/dms/write-status').then(({ data }) => {
+      if (alive) setCanWrite(!!data?.canWrite);
+    });
     return () => {
       alive = false;
     };

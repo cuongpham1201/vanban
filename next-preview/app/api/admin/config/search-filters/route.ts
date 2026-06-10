@@ -5,6 +5,7 @@ import { assertCanWriteDms, DmsWriteError } from '@/lib/dms/writeGuard';
 import { getAppOnlyGraphToken, getAppOnlyGraphTokenReadOnly } from '@/lib/graph/appToken';
 import { getConfigRecord, upsertConfigRecord, ConfigListError, GraphError } from '@/lib/dms/configList';
 import { SEARCH_FILTERS_CONFIG_KEY, mergeWithDefaults, FilterConfig } from '@/lib/dms/filterConfig';
+import { failJson, isPermissionError } from '@/lib/server/apiResponse';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,13 +49,12 @@ export async function GET(): Promise<NextResponse> {
       meta: { updatedAt: rec.updatedAt, updatedBy: rec.updatedBy } as ConfigMeta,
     });
   } catch (err) {
-    const e = err as GraphError;
-    const status = e instanceof GraphError && e.status >= 400 && e.status < 600 ? e.status : 502;
-    // Lỗi đọc SharePoint → trả 200 ok:false để client fallback (cache/default), không vỡ trang.
-    return NextResponse.json(
-      { ok: false, config: null, source: 'default', error: err instanceof Error ? err.message : String(err) },
-      { status }
-    );
+    // Lỗi đọc SharePoint → 200 ok:false để client fallback (cache/default), KHÔNG 5xx (tránh proxy HTML).
+    return failJson('config/search-filters:GET', 'Không đọc được cấu hình bộ lọc.', {
+      cause: err,
+      detail: err instanceof Error ? err.message : String(err),
+      extra: { config: null, source: 'default' },
+    });
   }
 }
 
@@ -90,18 +90,15 @@ export async function PUT(req: Request): Promise<NextResponse> {
     return NextResponse.json({ ok: true, config, source: 'sharepoint', meta: { updatedAt: rec.updatedAt, updatedBy } as ConfigMeta });
   } catch (err) {
     if (err instanceof ConfigListError) {
-      return NextResponse.json({ ok: false, error: err.message }, { status: err.status });
+      return failJson('config/search-filters:PUT', err.message, { status: err.status, cause: err });
     }
     if (err instanceof DmsWriteError) {
-      return NextResponse.json({ ok: false, error: err.message }, { status: err.status });
+      return failJson('config/search-filters:PUT', err.message, { status: err.status, cause: err });
     }
     if (err instanceof GraphError) {
-      const status = err.status >= 400 && err.status < 600 ? err.status : 502;
-      return NextResponse.json({ ok: false, error: `Lưu cấu hình thất bại (Graph ${err.status}).` }, { status });
+      const msg = isPermissionError(err.message) ? 'Không đủ quyền lưu cấu hình lên SharePoint.' : `Lưu cấu hình thất bại (Graph ${err.status}).`;
+      return failJson('config/search-filters:PUT', msg, { detail: err.message, cause: err });
     }
-    const msg = err instanceof Error ? err.message : String(err);
-    // eslint-disable-next-line no-console
-    console.error('[dms-config][search-filters][put][error]', msg);
-    return NextResponse.json({ ok: false, error: msg }, { status: 502 });
+    return failJson('config/search-filters:PUT', 'Lưu cấu hình thất bại.', { cause: err, detail: err instanceof Error ? err.message : String(err) });
   }
 }

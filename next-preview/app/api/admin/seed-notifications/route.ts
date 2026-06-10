@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/options';
 import { isWriteAllowlisted } from '@/lib/dms/writeGuard';
 import { createNotification } from '@/lib/dms/notifications/notificationService';
+import { failJson } from '@/lib/server/apiResponse';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,6 +49,6 @@ export async function POST(): Promise<NextResponse> {
     }
     return NextResponse.json({ ok: true, created: created.length, ids: created });
   } catch (e) {
-    return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : String(e) }, { status: 502 });
+    return failJson('seed-notifications', 'Không tạo được thông báo mẫu.', { cause: e, detail: e instanceof Error ? e.message : String(e) });
   }
 }

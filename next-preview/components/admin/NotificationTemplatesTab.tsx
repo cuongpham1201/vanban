@@ -13,6 +13,7 @@ import {
   SAMPLE_CONTEXT,
 } from '@/lib/dms/notifications/templates/templateConstants';
 import { renderNotificationTemplate } from '@/lib/dms/notifications/templates/templateRenderer';
+import { safeJsonFetch } from '@/lib/client/safeJsonFetch';
 
 type EditableField = 'titleTemplate' | 'bodyTemplate' | 'detailTemplate' | 'actionLabel' | 'actionUrlTemplate';
 type SaveState = { kind: 'idle' } | { kind: 'saving' } | { kind: 'saved' } | { kind: 'error'; msg?: string };
@@ -76,24 +77,19 @@ export default function NotificationTemplatesTab(): React.ReactElement {
   const load = React.useCallback(async () => {
     setLoading(true);
     setLoadErr(null);
-    try {
-      const r = await fetch('/api/admin/notifications/templates', { credentials: 'same-origin', cache: 'no-store' });
-      const j = await r.json();
-      if (j.ok) setTemplates(j.templates as NotificationTemplate[]);
-      else setLoadErr(j.error ?? 'Không tải được template.');
-    } catch (e) {
-      setLoadErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
+    const { data, parseError } = await safeJsonFetch<{ ok: boolean; templates?: NotificationTemplate[]; error?: string }>(
+      '/api/admin/notifications/templates',
+      { cache: 'no-store' }
+    );
+    if (parseError) setLoadErr(parseError);
+    else if (data?.ok && Array.isArray(data.templates)) setTemplates(data.templates);
+    else setLoadErr(data?.error ?? 'Không tải được template.');
+    setLoading(false);
   }, []);
 
   React.useEffect(() => {
     void load();
-    fetch('/api/dms/write-status', { credentials: 'same-origin' })
-      .then((r) => r.json())
-      .then((j) => setCanWrite(!!j?.canWrite))
-      .catch(() => setCanWrite(false));
+    void safeJsonFetch<{ canWrite?: boolean }>('/api/dms/write-status').then(({ data }) => setCanWrite(!!data?.canWrite));
   }, [load]);
 
   // Khi đổi event/channel hoặc templates đổi → nạp draft từ template hiệu lực tương ứng.
@@ -117,10 +113,10 @@ export default function NotificationTemplatesTab(): React.ReactElement {
   const onSave = async (): Promise<void> => {
     if (!draft) return;
     setSave({ kind: 'saving' });
-    try {
-      const r = await fetch(`/api/admin/notifications/templates/${encodeURIComponent(ev)}/${encodeURIComponent(ch)}`, {
+    const { data, parseError } = await safeJsonFetch<{ ok: boolean; effective?: NotificationTemplate; error?: string }>(
+      `/api/admin/notifications/templates/${encodeURIComponent(ev)}/${encodeURIComponent(ch)}`,
+      {
         method: 'PUT',
-        credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           enabled: draft.enabled,
@@ -130,41 +126,37 @@ export default function NotificationTemplatesTab(): React.ReactElement {
           actionLabel: draft.actionLabel,
           actionUrlTemplate: draft.actionUrlTemplate,
         }),
-      });
-      const j = await r.json();
-      if (j.ok) {
-        const eff = j.effective as NotificationTemplate;
-        setTemplates((arr) => arr.map((t) => (keyOf(t.eventType, t.channel) === keyOf(ev, ch) ? eff : t)));
-        setSave({ kind: 'saved' });
-        window.setTimeout(() => setSave((s) => (s.kind === 'saved' ? { kind: 'idle' } : s)), 2500);
-      } else {
-        setSave({ kind: 'error', msg: j.error });
       }
-    } catch (e) {
-      setSave({ kind: 'error', msg: e instanceof Error ? e.message : String(e) });
+    );
+    if (parseError) {
+      setSave({ kind: 'error', msg: parseError });
+    } else if (data?.ok && data.effective) {
+      const eff = data.effective;
+      setTemplates((arr) => arr.map((t) => (keyOf(t.eventType, t.channel) === keyOf(ev, ch) ? eff : t)));
+      setSave({ kind: 'saved' });
+      window.setTimeout(() => setSave((s) => (s.kind === 'saved' ? { kind: 'idle' } : s)), 2500);
+    } else {
+      setSave({ kind: 'error', msg: data?.error ?? 'Lưu thất bại.' });
     }
   };
 
   const onReset = async (): Promise<void> => {
     if (!window.confirm('Khôi phục template mặc định cho sự kiện/kênh này?')) return;
     setSave({ kind: 'saving' });
-    try {
-      const r = await fetch(`/api/admin/notifications/templates/${encodeURIComponent(ev)}/${encodeURIComponent(ch)}/reset`, {
-        method: 'POST',
-        credentials: 'same-origin',
-      });
-      const j = await r.json();
-      if (j.ok) {
-        const eff = j.effective as NotificationTemplate;
-        setTemplates((arr) => arr.map((t) => (keyOf(t.eventType, t.channel) === keyOf(ev, ch) ? eff : t)));
-        setDraft({ ...eff });
-        setSave({ kind: 'saved' });
-        window.setTimeout(() => setSave((s) => (s.kind === 'saved' ? { kind: 'idle' } : s)), 2500);
-      } else {
-        setSave({ kind: 'error', msg: j.error });
-      }
-    } catch (e) {
-      setSave({ kind: 'error', msg: e instanceof Error ? e.message : String(e) });
+    const { data, parseError } = await safeJsonFetch<{ ok: boolean; effective?: NotificationTemplate; error?: string }>(
+      `/api/admin/notifications/templates/${encodeURIComponent(ev)}/${encodeURIComponent(ch)}/reset`,
+      { method: 'POST' }
+    );
+    if (parseError) {
+      setSave({ kind: 'error', msg: parseError });
+    } else if (data?.ok && data.effective) {
+      const eff = data.effective;
+      setTemplates((arr) => arr.map((t) => (keyOf(t.eventType, t.channel) === keyOf(ev, ch) ? eff : t)));
+      setDraft({ ...eff });
+      setSave({ kind: 'saved' });
+      window.setTimeout(() => setSave((s) => (s.kind === 'saved' ? { kind: 'idle' } : s)), 2500);
+    } else {
+      setSave({ kind: 'error', msg: data?.error ?? 'Reset thất bại.' });
     }
   };
 
@@ -172,21 +164,18 @@ export default function NotificationTemplatesTab(): React.ReactElement {
     if (!draft) return;
     setTesting(true);
     setServerPreview(null);
-    try {
-      const r = await fetch('/api/admin/notifications/templates/preview', {
+    const { data, parseError } = await safeJsonFetch<{ ok: boolean; rendered?: Rendered; error?: string }>(
+      '/api/admin/notifications/templates/preview',
+      {
         method: 'POST',
-        credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ eventType: ev, channel: ch, template: draft }),
-      });
-      const j = await r.json();
-      if (j.ok) setServerPreview(j.rendered as Rendered);
-      else setSave({ kind: 'error', msg: j.error });
-    } catch (e) {
-      setSave({ kind: 'error', msg: e instanceof Error ? e.message : String(e) });
-    } finally {
-      setTesting(false);
-    }
+      }
+    );
+    if (parseError) setSave({ kind: 'error', msg: parseError });
+    else if (data?.ok && data.rendered) setServerPreview(data.rendered);
+    else setSave({ kind: 'error', msg: data?.error ?? 'Render thất bại.' });
+    setTesting(false);
   };
 
   // Live preview client-side (giống logic server: renderNotificationTemplate + SAMPLE_CONTEXT).

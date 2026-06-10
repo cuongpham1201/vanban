@@ -11,6 +11,7 @@ import {
   CHANNEL_LABELS,
   PLACEHOLDER_FIELDS,
 } from '@/lib/dms/notifications/templates/templateConstants';
+import { failJson } from '@/lib/server/apiResponse';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,9 +40,9 @@ export async function GET(): Promise<NextResponse> {
       },
     });
   } catch (e) {
-    return NextResponse.json(
-      { ok: false, error: e instanceof Error ? e.message : String(e) },
-      { status: 502 }
-    );
+    return failJson('notifications/templates:GET', 'Không tải được danh sách template.', {
+      cause: e,
+      detail: e instanceof Error ? e.message : String(e),
+    });
   }
 }

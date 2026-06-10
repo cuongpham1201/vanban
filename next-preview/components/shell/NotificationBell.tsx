@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Icon from './Icon';
 import NotificationDropdown from './NotificationDropdown';
 import { DmsNotification } from '@/lib/dms/notifications/types';
+import { safeJsonFetch } from '@/lib/client/safeJsonFetch';
 import styles from './notifications.module.css';
 
 const POLL_MS = 30_000;
@@ -18,26 +19,16 @@ export default function NotificationBell(): React.ReactElement {
   const [loading, setLoading] = React.useState(false);
 
   const refreshCount = React.useCallback(async () => {
-    try {
-      const r = await fetch('/api/notifications/unread-count', { credentials: 'same-origin', cache: 'no-store' });
-      const j = (await r.json()) as { ok: boolean; count?: number };
-      if (j.ok && typeof j.count === 'number') setCount(j.count);
-    } catch {
-      /* im lặng — không phá header */
-    }
+    // safeJsonFetch: KHÔNG ném "Unexpected token '<'" nếu proxy trả HTML — chuông im lặng, không phá header.
+    const { data } = await safeJsonFetch<{ ok: boolean; count?: number }>('/api/notifications/unread-count', { cache: 'no-store' });
+    if (data?.ok && typeof data.count === 'number') setCount(data.count);
   }, []);
 
   const loadList = React.useCallback(async () => {
     setLoading(true);
-    try {
-      const r = await fetch('/api/notifications?top=20', { credentials: 'same-origin', cache: 'no-store' });
-      const j = (await r.json()) as { ok: boolean; notifications?: DmsNotification[] };
-      if (j.ok && Array.isArray(j.notifications)) setItems(j.notifications);
-    } catch {
-      /* im lặng */
-    } finally {
-      setLoading(false);
-    }
+    const { data } = await safeJsonFetch<{ ok: boolean; notifications?: DmsNotification[] }>('/api/notifications?top=20', { cache: 'no-store' });
+    if (data?.ok && Array.isArray(data.notifications)) setItems(data.notifications);
+    setLoading(false);
   }, []);
 
   // Poll unread count.
