@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/options';
 import { isWriteAllowlisted } from '@/lib/dms/writeGuard';
 import { getAppOnlyGraphTokenReadOnly } from '@/lib/graph/appToken';
-import { inspectNotificationsList } from '@/lib/dms/notifications/provisionNotifications';
+import { inspectAllNotificationLists } from '@/lib/dms/notifications/provisionNotifications';
 import { getUnreadCount } from '@/lib/dms/notifications/notificationService';
 import { getEmailConfig } from '@/lib/dms/notifications/channels/emailChannel';
 import { failJson } from '@/lib/server/apiResponse';
@@ -30,13 +30,20 @@ export async function GET(): Promise<NextResponse> {
   let listExists = false;
   let schemaValid = false;
   let itemCount = 0;
+  let missingLists: string[] = [];
+  let missingColumns: string[] = [];
+  let missingIndexes: string[] = [];
   let inspectError: string | undefined;
   try {
     const accessToken = await getAppOnlyGraphTokenReadOnly();
-    const insp = await inspectNotificationsList(accessToken);
-    listExists = insp.listExists;
+    // CÙNG nguồn với Provision (inspectAllNotificationLists) → schemaValid không bao giờ lệch.
+    const insp = await inspectAllNotificationLists(accessToken);
     schemaValid = insp.schemaValid;
-    itemCount = insp.itemCount;
+    missingLists = insp.missingLists;
+    missingColumns = insp.missingColumns;
+    missingIndexes = insp.missingIndexes;
+    listExists = !insp.missingLists.length;
+    itemCount = insp.lists.reduce((sum, l) => sum + l.itemCount, 0);
   } catch (e) {
     inspectError = e instanceof Error ? e.message : String(e);
   }
@@ -56,6 +63,9 @@ export async function GET(): Promise<NextResponse> {
     unreadCount,
     emailEnabled,
     graphReady,
+    missingLists,
+    missingColumns,
+    missingIndexes,
     ...(inspectError ? { inspectError } : {}),
   });
  } catch (e) {

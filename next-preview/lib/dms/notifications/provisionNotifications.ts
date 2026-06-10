@@ -42,6 +42,12 @@ export const NOTIFICATION_READS_COLUMNS: ColumnDef[] = [
   { name: 'ReadAt', kind: 'text' },
 ];
 
+// SINGLE SOURCE OF TRUTH — Health & Provision đều đọc từ đây để KHÔNG bao giờ lệch nhau.
+export const NOTIFICATION_LIST_DEFS: { listName: string; columns: ColumnDef[] }[] = [
+  { listName: NOTIFICATIONS_LIST_NAME, columns: NOTIFICATION_COLUMNS },
+  { listName: NOTIFICATION_READS_LIST_NAME, columns: NOTIFICATION_READS_COLUMNS },
+];
+
 interface GraphColumn {
   name: string;
   indexed?: boolean;
@@ -122,12 +128,22 @@ async function ensureIndexes(
   for (const c of want) {
     const col = byName.get(c.name.toLowerCase());
     if (col && col.indexed !== true) {
-      await graphFetch(`/sites/${siteId}/lists/${listId}/columns/${col.id}`, {
-        accessToken,
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ indexed: true }),
-      }).then(() => done.push(c.name)).catch(() => undefined);
+      // eslint-disable-next-line no-console
+      console.log('[dms-noti][provision] creating index:', c.name);
+      try {
+        await graphFetch(`/sites/${siteId}/lists/${listId}/columns/${col.id}`, {
+          accessToken,
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ indexed: true }),
+        });
+        done.push(c.name);
+        // eslint-disable-next-line no-console
+        console.log('[dms-noti][provision] index success:', c.name);
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error('[dms-noti][provision] index failed:', c.name, e instanceof Error ? e.message : String(e));
+      }
     }
   }
   return done;
@@ -160,13 +176,25 @@ async function provisionList(accessToken: string, listName: string, columns: Col
     const have = new Set((await listColumnNames(accessToken, site.id, existing.id)).map((n) => n.toLowerCase()));
     const missing = columns.filter((c) => !have.has(c.name.toLowerCase()));
     const added: string[] = [];
+    const failedColumns: string[] = [];
     for (const c of missing) {
-      await graphFetch(`/sites/${site.id}/lists/${existing.id}/columns`, {
-        accessToken,
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(toGraphColumn(c)),
-      }).then(() => added.push(c.name)).catch(() => undefined);
+      // eslint-disable-next-line no-console
+      console.log('[dms-noti][provision] creating column:', `${listName}.${c.name}`);
+      try {
+        await graphFetch(`/sites/${site.id}/lists/${existing.id}/columns`, {
+          accessToken,
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(toGraphColumn(c)),
+        });
+        added.push(c.name);
+        // eslint-disable-next-line no-console
+        console.log('[dms-noti][provision] success:', `${listName}.${c.name}`);
+      } catch (e) {
+        failedColumns.push(c.name);
+        // eslint-disable-next-line no-console
+        console.error('[dms-noti][provision] failed:', `${listName}.${c.name}`, e instanceof Error ? e.message : String(e));
+      }
     }
     // Bật index cho cột cần index (kể cả cột đã tồn tại từ trước nhưng chưa index).
     const indexedColumns = await ensureIndexes(accessToken, site.id, existing.id, columns).catch(() => []);
@@ -238,4 +266,83 @@ export async function inspectNotificationsList(accessToken: string): Promise<Not
     itemCount = 0;
   }
   return { listExists: true, schemaValid: missing.length === 0, itemCount, missingColumns: missing };
+}
+
+// ── Unified inspect (SINGLE SOURCE) — Health & Provision dùng chung ────────────
+export interface ListSchemaHealth {
+  listName: string;
+  exists: boolean;
+  itemCount: number;
+  /** Cột bắt buộc nhưng chưa có (tên trần). */
+  missingColumns: string[];
+  /** Cột yêu cầu index nhưng chưa index (tên trần). */
+  missingIndexes: string[];
+}
+
+export interface NotificationsSchemaHealth {
+  schemaValid: boolean;
+  /** List chưa tồn tại. */
+  missingLists: string[];
+  /** Cột thiếu, prefix "List.Column". */
+  missingColumns: string[];
+  /** Index thiếu, prefix "List.Column". */
+  missingIndexes: string[];
+  lists: ListSchemaHealth[];
+}
+
+/**
+ * Kiểm tra schema của CẢ HAI list (DMSNotifications + DMSNotificationReads) theo NOTIFICATION_LIST_DEFS:
+ * thiếu list / thiếu cột / thiếu index. ĐÂY là nguồn chân lý chung cho Health lẫn Provision.
+ */
+export async function inspectAllNotificationLists(accessToken: string): Promise<NotificationsSchemaHealth> {
+  const site = await resolveSiteId(accessToken);
+  const missingLists: string[] = [];
+  const missingColumns: string[] = [];
+  const missingIndexes: string[] = [];
+  const lists: ListSchemaHealth[] = [];
+
+  for (const def of NOTIFICATION_LIST_DEFS) {
+    const existing = await findList(accessToken, site.id, def.listName);
+    if (!existing) {
+      missingLists.push(def.listName);
+      lists.push({
+        listName: def.listName,
+        exists: false,
+        itemCount: 0,
+        missingColumns: def.columns.map((c) => c.name),
+        missingIndexes: def.columns.filter((c) => c.indexed).map((c) => c.name),
+      });
+      continue;
+    }
+    const cols = await graphFetch<{ value: { name: string; indexed?: boolean }[] }>(
+      `/sites/${site.id}/lists/${existing.id}/columns?$select=name,indexed&$top=200`,
+      { accessToken }
+    );
+    const byName = new Map((cols.value ?? []).map((c) => [c.name.toLowerCase(), c]));
+    const lacksCol = def.columns.filter((c) => !byName.has(c.name.toLowerCase())).map((c) => c.name);
+    const lacksIdx = def.columns
+      .filter((c) => c.indexed && byName.get(c.name.toLowerCase())?.indexed !== true)
+      .map((c) => c.name);
+    let itemCount = 0;
+    try {
+      const items = await graphFetch<{ value: unknown[] }>(
+        `/sites/${site.id}/lists/${existing.id}/items?$select=id&$top=500`,
+        { accessToken }
+      );
+      itemCount = (items.value ?? []).length;
+    } catch {
+      itemCount = 0;
+    }
+    lacksCol.forEach((n) => missingColumns.push(`${def.listName}.${n}`));
+    lacksIdx.forEach((n) => missingIndexes.push(`${def.listName}.${n}`));
+    lists.push({ listName: def.listName, exists: true, itemCount, missingColumns: lacksCol, missingIndexes: lacksIdx });
+  }
+
+  return {
+    schemaValid: missingLists.length === 0 && missingColumns.length === 0 && missingIndexes.length === 0,
+    missingLists,
+    missingColumns,
+    missingIndexes,
+    lists,
+  };
 }

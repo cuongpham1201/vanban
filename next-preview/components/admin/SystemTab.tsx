@@ -9,10 +9,13 @@ interface ProvisionResult {
   ok: boolean;
   created?: boolean;
   validated?: boolean;
-  listName?: string;
-  missingColumns?: string[];
   addedColumns?: string[];
+  indexedColumns?: string[];
+  missingLists?: string[];
+  missingColumns?: string[];
+  missingIndexes?: string[];
   error?: string;
+  detail?: string;
 }
 interface Health {
   ok: boolean;
@@ -22,6 +25,9 @@ interface Health {
   unreadCount?: number;
   emailEnabled?: boolean;
   graphReady?: boolean;
+  missingLists?: string[];
+  missingColumns?: string[];
+  missingIndexes?: string[];
   error?: string;
 }
 
@@ -87,17 +93,27 @@ export default function SystemTab(): React.ReactElement {
 
       {/* Health */}
       <div className="adm-panelcard" style={{ marginBottom: 18 }}>
-        <div className="adm-toolbar"><span className="t-xs mut" style={{ fontWeight: 700 }}>Tình trạng (DMSNotifications)</span></div>
-        <div style={{ padding: 16, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        <div className="adm-toolbar"><span className="t-xs mut" style={{ fontWeight: 700 }}>Tình trạng (DMSNotifications + DMSNotificationReads)</span></div>
+        <div style={{ padding: 16 }}>
           {health ? (
             health.ok ? (
               <>
-                {badge('List tồn tại', health.listExists)}
-                {badge('Schema hợp lệ', health.schemaValid)}
-                <span className="badge badge-navy" style={{ padding: '2px 8px' }}>Items: {health.itemCount ?? 0}</span>
-                <span className="badge badge-navy" style={{ padding: '2px 8px' }}>Chưa đọc: {health.unreadCount ?? 0}</span>
-                {badge('Email bật', health.emailEnabled)}
-                {badge('Graph sẵn sàng', health.graphReady)}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {badge('List tồn tại', health.listExists)}
+                  {badge('Schema hợp lệ', health.schemaValid)}
+                  <span className="badge badge-navy" style={{ padding: '2px 8px' }}>Items: {health.itemCount ?? 0}</span>
+                  <span className="badge badge-navy" style={{ padding: '2px 8px' }}>Chưa đọc: {health.unreadCount ?? 0}</span>
+                  {badge('Email bật', health.emailEnabled)}
+                  {badge('Graph sẵn sàng', health.graphReady)}
+                </div>
+                {!health.schemaValid && (
+                  <div className="t-xs" style={{ marginTop: 10, color: 'var(--danger-700)' }}>
+                    {health.missingLists && health.missingLists.length > 0 && <div>Thiếu list: {health.missingLists.join(', ')}</div>}
+                    {health.missingColumns && health.missingColumns.length > 0 && <div>Thiếu cột: {health.missingColumns.join(', ')}</div>}
+                    {health.missingIndexes && health.missingIndexes.length > 0 && <div>Thiếu index: {health.missingIndexes.join(', ')}</div>}
+                    <div className="mut" style={{ marginTop: 4 }}>Bấm “Provision DMS Notifications” để bổ sung.</div>
+                  </div>
+                )}
               </>
             ) : (
               <span className="t-sm" style={{ color: 'var(--danger-700)' }}>{health.error ?? 'Không lấy được tình trạng (cần quyền admin).'}</span>
@@ -127,18 +143,30 @@ export default function SystemTab(): React.ReactElement {
                 border: `1px solid ${provision.ok ? 'var(--success-500)' : 'var(--danger-500)'}`,
               }}
             >
-              {provision.ok ? (
+              {provision.ok || provision.validated ? (
                 <>
-                  <div><b>{provision.created ? 'Đã tạo list mới' : 'List đã tồn tại'}</b> · Schema {provision.validated ? 'hợp lệ' : 'chưa đủ'}</div>
+                  <div><b>{provision.created ? 'Đã tạo list mới' : 'List đã tồn tại'}</b> · Schema hợp lệ ✓</div>
                   {provision.addedColumns && provision.addedColumns.length > 0 && (
                     <div className="t-xs" style={{ marginTop: 4 }}>Cột đã thêm: {provision.addedColumns.join(', ')}</div>
                   )}
-                  {provision.missingColumns && provision.missingColumns.length > 0 && (
-                    <div className="t-xs" style={{ marginTop: 4 }}>Cột thiếu (trước đó): {provision.missingColumns.join(', ')}</div>
+                  {provision.indexedColumns && provision.indexedColumns.length > 0 && (
+                    <div className="t-xs" style={{ marginTop: 4 }}>Index đã bật: {provision.indexedColumns.join(', ')}</div>
                   )}
                 </>
               ) : (
-                <div style={{ color: 'var(--danger-700)' }}><b>Lỗi:</b> {provision.error}</div>
+                <>
+                  <div style={{ color: 'var(--danger-700)' }}><b>{provision.error ?? 'Schema chưa đầy đủ'}</b></div>
+                  {provision.missingLists && provision.missingLists.length > 0 && (
+                    <div className="t-xs" style={{ marginTop: 6 }}><b>Thiếu list:</b><ul style={{ margin: '2px 0 0 18px' }}>{provision.missingLists.map((x) => <li key={x}>{x}</li>)}</ul></div>
+                  )}
+                  {provision.missingColumns && provision.missingColumns.length > 0 && (
+                    <div className="t-xs" style={{ marginTop: 6 }}><b>Thiếu cột:</b><ul style={{ margin: '2px 0 0 18px' }}>{provision.missingColumns.map((x) => <li key={x}>{x}</li>)}</ul></div>
+                  )}
+                  {provision.missingIndexes && provision.missingIndexes.length > 0 && (
+                    <div className="t-xs" style={{ marginTop: 6 }}><b>Thiếu index:</b><ul style={{ margin: '2px 0 0 18px' }}>{provision.missingIndexes.map((x) => <li key={x}>{x}</li>)}</ul></div>
+                  )}
+                  {provision.detail && <div className="t-2xs mut" style={{ marginTop: 6 }}>{provision.detail}</div>}
+                </>
               )}
             </div>
           )}
