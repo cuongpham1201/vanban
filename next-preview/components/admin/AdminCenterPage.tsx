@@ -6,15 +6,17 @@ import FilterManagerTab from './FilterManagerTab';
 import MetadataTab from './MetadataTab';
 import CatalogTab from './CatalogTab';
 import SystemTab from './SystemTab';
+import NotificationTemplatesTab from './NotificationTemplatesTab';
 
 // Admin Center V2 — port pixel từ Admin.html (.submenu + .admin-main + .apane).
-// Tab: Bộ lọc tìm kiếm · Cấu hình Metadata · Danh mục · Hệ thống.
-type PaneKey = 'filters' | 'meta' | 'catalog' | 'system';
+// Tab: Bộ lọc tìm kiếm · Cấu hình Metadata · Danh mục · Quản trị thông báo · Hệ thống.
+type PaneKey = 'filters' | 'meta' | 'catalog' | 'notifications' | 'system';
 
 const MENU: { key: PaneKey; label: string; icon: IconName }[] = [
   { key: 'filters', label: 'Bộ lọc tìm kiếm', icon: 'filter' },
   { key: 'meta', label: 'Cấu hình Metadata', icon: 'admin' },
   { key: 'catalog', label: 'Danh mục', icon: 'docs' },
+  { key: 'notifications', label: 'Quản trị thông báo', icon: 'bell' },
   { key: 'system', label: 'Hệ thống', icon: 'settings' },
 ];
 
@@ -43,6 +45,7 @@ export default function AdminCenterPage(): React.ReactElement {
         {pane === 'filters' && <FilterManagerTab />}
         {pane === 'meta' && <MetadataTab />}
         {pane === 'catalog' && <CatalogTab />}
+        {pane === 'notifications' && <NotificationTemplatesTab />}
         {pane === 'system' && <SystemTab />}
       </main>
     </div>

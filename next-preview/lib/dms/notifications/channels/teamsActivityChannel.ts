@@ -30,6 +30,8 @@ import {
   buildPreviewText,
   DmsTeamsActivityType,
 } from '@/lib/dms/teams/activityTemplates';
+import { renderNotificationContent } from '@/lib/dms/notifications/templates/notificationTemplateService';
+import { NotificationTemplateContext } from '@/lib/dms/notifications/templates/templateConstants';
 
 export interface TeamsActivityEvent {
   type: NotificationType;
@@ -38,6 +40,8 @@ export interface TeamsActivityEvent {
   documentNumber?: string;
   documentTitle?: string;
   eventKey: string;
+  // Context render template (channel 'teamsActivity').
+  ctx?: NotificationTemplateContext;
 }
 
 export interface TeamsActivityResult {
@@ -131,6 +135,10 @@ interface SendOneInput {
   documentId: string;
   documentNumber?: string;
   documentTitle?: string;
+  // Override nội dung từ template (nếu có) — fallback builder mặc định khi không truyền.
+  topicValue?: string;
+  documentInfo?: string;
+  previewText?: string;
   logCtx: Record<string, unknown>;
 }
 
@@ -148,12 +156,16 @@ async function sendOne(input: SendOneInput): Promise<TeamsActivityResult> {
 
   const path = `/users/${encodeURIComponent(aadObjectId)}/teamwork/sendActivityNotification`;
   const webUrl = buildDocumentDeepLink(documentId);
+  // Ưu tiên nội dung render từ template; nếu trống → builder mặc định.
+  const topicValue = (input.topicValue && input.topicValue.trim()) || buildTopicValue(documentNumber);
+  const documentInfo = (input.documentInfo && input.documentInfo.trim()) || buildDocumentInfo(documentNumber, documentTitle);
+  const previewText = (input.previewText && input.previewText.trim()) || buildPreviewText(activityType, documentNumber, documentTitle);
   const payload = {
-    topic: { source: 'text' as const, value: buildTopicValue(documentNumber), webUrl },
+    topic: { source: 'text' as const, value: topicValue, webUrl },
     activityType,
-    previewText: { content: buildPreviewText(activityType, documentNumber, documentTitle) },
+    previewText: { content: previewText },
     // {documentInfo} là placeholder duy nhất trong manifest templateText.
-    templateParameters: [{ name: 'documentInfo', value: buildDocumentInfo(documentNumber, documentTitle) }],
+    templateParameters: [{ name: 'documentInfo', value: documentInfo }],
   };
 
   try {
@@ -207,6 +219,17 @@ export async function sendTeamsActivityForEvent(ev: TeamsActivityEvent): Promise
     }
     if (!isGraphReady()) return { status: 'skipped', recipient, activityType, reason: 'graph-not-ready (thiếu AZURE_AD_* env)' };
 
+    // Nội dung từ Notification Template Manager (channel 'teamsActivity'). enabled=false → bỏ qua.
+    const ctx: NotificationTemplateContext = ev.ctx ?? {
+      id: ev.documentId,
+      soVanBan: ev.documentNumber,
+      trichYeu: ev.documentTitle,
+    };
+    const content = await renderNotificationContent(ev.type, 'teamsActivity', ctx).catch(() => null);
+    if (content && !content.enabled) {
+      return { status: 'skipped', recipient, activityType, reason: 'disabled-by-template' };
+    }
+
     const accessToken = await getAppOnlyGraphTokenReadOnly();
     const result = await sendOne({
       accessToken,
@@ -215,6 +238,9 @@ export async function sendTeamsActivityForEvent(ev: TeamsActivityEvent): Promise
       documentId: ev.documentId,
       documentNumber: ev.documentNumber,
       documentTitle: ev.documentTitle,
+      topicValue: content?.title,
+      documentInfo: content?.body,
+      previewText: content?.detail,
       logCtx,
     });
     if (result.status === 'sent') SENT.add(key);

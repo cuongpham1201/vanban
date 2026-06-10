@@ -4,6 +4,7 @@
 
 import { dispatchNotification } from './dispatcher';
 import { BROADCAST_EMAIL } from './notificationService';
+import { NotificationTemplateContext } from './templates/templateConstants';
 
 interface DocCtx {
   actorEmail: string;
@@ -14,6 +15,8 @@ interface DocCtx {
   donViSoanThao?: string;
   ngayBanHanh?: string;
   trangThai?: string;
+  // Metadata mở rộng (optional) cho template placeholder ({{donViSoHuu}}, {{loaiTaiLieu}}…).
+  fields?: NotificationTemplateContext;
 }
 
 export async function notifyNewDocument(ctx: DocCtx): Promise<void> {
@@ -27,6 +30,7 @@ export async function notifyNewDocument(ctx: DocCtx): Promise<void> {
     donViSoanThao: ctx.donViSoanThao,
     ngayBanHanh: ctx.ngayBanHanh,
     trangThai: ctx.trangThai,
+    fields: ctx.fields,
     title: 'Văn bản mới đã được tải lên',
     message: `${ctx.documentNumber ?? 'Văn bản'} — ${ctx.documentTitle ?? ''}`.trim(),
     eventKey: `NEW_DOCUMENT:${ctx.documentId}`,
@@ -48,6 +52,7 @@ export async function notifyDocumentReplaced(
     donViSoanThao: ctx.donViSoanThao,
     ngayBanHanh: ctx.ngayBanHanh,
     trangThai: ctx.trangThai,
+    fields: ctx.fields,
     oldDocumentNumber: oldNo,
     newDocumentNumber: newNo,
     title: 'Văn bản đã được thay thế',
@@ -66,6 +71,9 @@ export async function notifyDocumentUpdated(ctx: DocCtx & { changedFields?: stri
     documentId: ctx.documentId,
     documentNumber: ctx.documentNumber,
     documentTitle: ctx.documentTitle,
+    ngayBanHanh: ctx.ngayBanHanh,
+    trangThai: ctx.trangThai,
+    fields: ctx.fields,
     title: 'Metadata văn bản đã cập nhật',
     message: `${ctx.documentNumber ?? 'Văn bản'} đã được cập nhật${fieldsTxt}`,
     // Cập nhật nhiều lần → eventKey kèm timestamp (không bị dedup mất ở web).

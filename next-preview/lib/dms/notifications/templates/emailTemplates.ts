@@ -67,6 +67,54 @@ function row(label: string, value: string): string {
     </tr>`;
 }
 
+/**
+ * Build email HTML từ nội dung ĐÃ RENDER bởi Notification Template Manager.
+ * - subject: tiêu đề email (đã render, plain text).
+ * - heading: dòng tiêu đề lớn trong body.
+ * - detailText: nội dung chi tiết (nhiều dòng "\n"); dòng dạng "Nhãn: giá trị" → render thành hàng bảng.
+ * - actionLabel + link: nút mở văn bản.
+ * MỌI giá trị đều được esc() khi nhúng HTML → chống injection.
+ */
+export function buildEmailHtml(input: {
+  subject: string;
+  heading: string;
+  detailText: string;
+  actionLabel: string;
+  link: string;
+}): EmailContent {
+  const { subject, heading, detailText, actionLabel, link } = input;
+  const lines = (detailText ?? '').split('\n').map((l) => l.trim()).filter(Boolean);
+  const rowsHtml = lines
+    .map((line) => {
+      const m = /^([^:]{1,40}):\s*(.*)$/.exec(line);
+      if (m) return row(m[1], val(m[2]));
+      return `<tr><td colspan="2" style="padding:7px 0;color:#15202e;font-size:14px">${esc(line)}</td></tr>`;
+    })
+    .join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f1f4f8;font-family:'Segoe UI',system-ui,Arial,sans-serif">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f4f8;padding:24px 0">
+    <tr><td align="center">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(13,24,48,.08)">
+        <tr><td style="background:#143f7e;padding:18px 28px;color:#ffffff;font-size:18px;font-weight:700;letter-spacing:.01em">BHL DMS</td></tr>
+        <tr><td style="padding:24px 28px 8px;color:#0a2444;font-size:18px;font-weight:700">${esc(heading)}</td></tr>
+        <tr><td style="padding:4px 28px 8px">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rowsHtml}</table>
+        </td></tr>
+        <tr><td style="padding:18px 28px 28px">
+          <a href="${esc(link)}" style="display:inline-block;background:#14498b;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:12px 22px;border-radius:8px">${esc(actionLabel || 'MỞ VĂN BẢN')}</a>
+          <div style="margin-top:12px;font-size:12px;color:#97a3b2;word-break:break-all">${esc(link)}</div>
+        </td></tr>
+        <tr><td style="background:#f7f9fc;padding:16px 28px;color:#6f7e8e;font-size:12px;border-top:1px solid #eaeef3">Hệ thống Quản lý Văn bản BHL DMS</td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+  return { subject: subject || '[BHL DMS] Thông báo văn bản', html };
+}
+
 export function buildEmailContent(i: EmailContentInput): EmailContent {
   const link = `${i.baseUrl.replace(/\/+$/, '')}/documents/${encodeURIComponent(i.documentId)}`;
   const replacedRow =

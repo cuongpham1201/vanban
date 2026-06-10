@@ -10,10 +10,11 @@
 //   DMS_EMAIL_DRY_RUN=true|false                  (mặc định: true ở development → KHÔNG gửi thật)
 //   DMS_PUBLIC_BASE_URL=https://vanban.biahalong.com
 
-import { graphFetch } from '@/lib/graph/client';
 import { getAppOnlyGraphTokenReadOnly } from '@/lib/graph/appToken';
 import { NotificationType } from '../types';
-import { buildEmailContent } from '../templates/emailTemplates';
+import { buildEmailHtml } from '../templates/emailTemplates';
+import { renderNotificationContent } from '../templates/notificationTemplateService';
+import { NotificationTemplateContext } from '../templates/templateConstants';
 
 export interface EmailEvent {
   type: NotificationType;
@@ -26,6 +27,8 @@ export interface EmailEvent {
   oldDocumentNumber?: string;
   newDocumentNumber?: string;
   eventKey: string;
+  // Context render template (dispatcher gom field); thiếu → build tối thiểu từ field rời.
+  ctx?: NotificationTemplateContext;
 }
 
 export interface EmailConfig {
@@ -42,13 +45,8 @@ export type EmailResult =
   | { ok: true; sent: boolean; dryRun?: boolean; recipient: string; subject: string }
   | { ok: false; skipped?: string; recipient?: string; error?: string };
 
-// Loại sự kiện ĐƯỢC gửi email (DOCUMENT_UPDATED/SYSTEM bị loại — tránh spam).
-const EMAILABLE: ReadonlySet<NotificationType> = new Set<NotificationType>([
-  'NEW_DOCUMENT',
-  'DOCUMENT_REPLACED',
-  'DOCUMENT_EXPIRING_SOON',
-  'DOCUMENT_EXPIRED',
-]);
+// Việc loại sự kiện khỏi email (DOCUMENT_UPDATED/SYSTEM) nay do template.enabled quyết định
+// (default email DOCUMENT_UPDATED/SYSTEM = false → giữ hành vi cũ, nhưng admin có thể bật).
 
 function bool(v: string | undefined, dflt = false): boolean {
   if (v === undefined) return dflt;
@@ -89,12 +87,18 @@ const _g = globalThis as unknown as { __dmsEmailSent?: Set<string> };
 _g.__dmsEmailSent ??= new Set<string>();
 const SENT: Set<string> = _g.__dmsEmailSent;
 
+const GRAPH_BASE = 'https://graph.microsoft.com/v1.0';
+
+// Gửi mail qua Graph. LƯU Ý: sendMail trả 202 Accepted với BODY RỖNG → KHÔNG được res.json()
+// (đó là gốc lỗi "[dms-noti][email][error] Unexpected end of JSON input" — graphFetch luôn res.json()
+//  cho status != 204). Ở đây fetch trực tiếp, chỉ kiểm tra res.ok, KHÔNG parse body rỗng.
 async function graphSendMail(from: string, to: string[], subject: string, html: string): Promise<void> {
   const accessToken = await getAppOnlyGraphTokenReadOnly(); // un-gated app-only mint
-  await graphFetch(`/users/${encodeURIComponent(from)}/sendMail`, {
-    accessToken,
+  const url = `${GRAPH_BASE}/users/${encodeURIComponent(from)}/sendMail`;
+  const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    cache: 'no-store',
     body: JSON.stringify({
       message: {
         subject,
@@ -104,6 +108,11 @@ async function graphSendMail(from: string, to: string[], subject: string, html: 
       saveToSentItems: false,
     }),
   });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(`Graph sendMail ${res.status} ${res.statusText} — ${detail.slice(0, 300)}`);
+  }
+  // 202 Accepted, body rỗng → thành công, KHÔNG parse JSON.
 }
 
 /**
@@ -111,9 +120,6 @@ async function graphSendMail(from: string, to: string[], subject: string, html: 
  */
 export async function sendEmailForEvent(ev: EmailEvent): Promise<EmailResult> {
   try {
-    if (!EMAILABLE.has(ev.type)) {
-      return { ok: false, skipped: 'type-not-emailable' };
-    }
     const cfg = getEmailConfig();
     if (!cfg.enabled) {
       return { ok: false, skipped: 'disabled' };
@@ -128,17 +134,31 @@ export async function sendEmailForEvent(ev: EmailEvent): Promise<EmailResult> {
       return { ok: false, skipped: 'duplicate', recipient };
     }
 
-    const { subject, html } = buildEmailContent({
-      type: ev.type,
-      documentId: ev.documentId,
-      documentNumber: ev.documentNumber,
-      documentTitle: ev.documentTitle,
-      donViSoanThao: ev.donViSoanThao,
+    // Nội dung email từ Notification Template Manager (channel 'email'). enabled=false → bỏ qua.
+    const ctx: NotificationTemplateContext = ev.ctx ?? {
+      id: ev.documentId,
+      soVanBan: ev.documentNumber,
+      trichYeu: ev.documentTitle,
       ngayBanHanh: ev.ngayBanHanh,
       trangThai: ev.trangThai,
+      donViSoHuu: ev.donViSoanThao,
       oldDocumentNumber: ev.oldDocumentNumber,
       newDocumentNumber: ev.newDocumentNumber,
-      baseUrl: cfg.baseUrl,
+    };
+    const content = await renderNotificationContent(ev.type, 'email', ctx);
+    if (!content.enabled) {
+      return { ok: false, skipped: 'disabled-by-template', recipient };
+    }
+    const base = cfg.baseUrl.replace(/\/+$/, '');
+    const link = content.actionUrl.startsWith('http')
+      ? content.actionUrl
+      : `${base}${content.actionUrl.startsWith('/') ? '' : '/'}${content.actionUrl}`;
+    const { subject, html } = buildEmailHtml({
+      subject: content.title,
+      heading: content.body,
+      detailText: content.detail,
+      actionLabel: content.actionLabel,
+      link,
     });
 
     if (cfg.dryRun) {
@@ -154,12 +174,13 @@ export async function sendEmailForEvent(ev: EmailEvent): Promise<EmailResult> {
     await graphSendMail(cfg.from, [recipient], subject, html);
     if (ev.eventKey) SENT.add(ev.eventKey);
     // eslint-disable-next-line no-console
-    console.log('[dms-noti][email][sent]', JSON.stringify({ to: recipient, subject, eventKey: ev.eventKey }));
+    console.log('[dms-noti][email] send success', JSON.stringify({ to: recipient, subject, eventKey: ev.eventKey }));
     return { ok: true, sent: true, recipient, subject };
   } catch (e) {
-    // BEST-EFFORT: log, không throw.
+    // BEST-EFFORT: log rõ file/hàm/đầu vào, KHÔNG throw (không làm hỏng upload/replace).
+    const msg = e instanceof Error ? e.message : String(e);
     // eslint-disable-next-line no-console
-    console.error('[dms-noti][email][error]', e instanceof Error ? e.message : String(e));
-    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    console.error('[dms-noti][email] send failed (emailChannel.graphSendMail)', JSON.stringify({ to: resolveRecipient(getEmailConfig()), type: ev.type, eventKey: ev.eventKey, error: msg }));
+    return { ok: false, error: msg };
   }
 }

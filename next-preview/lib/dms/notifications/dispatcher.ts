@@ -1,13 +1,14 @@
-// Notification dispatcher — Phase 2. Một sự kiện DMS → fan-out qua các channel:
-//   1) Web (Phase 1): tạo bản ghi notification (header bell).
-//   2) Email (Phase 2): gửi email broadcast/test.
+// Notification dispatcher — một sự kiện DMS → fan-out qua các channel:
+//   1) Web (chuông)              2) Email              3) Teams Activity Feed
+// Nội dung MỖI kênh lấy từ Notification Template Manager (config DMSConfig → default code).
 // Mọi channel BEST-EFFORT: lỗi 1 channel KHÔNG ảnh hưởng channel khác hay luồng upload/replace/edit.
-// (Phase 3 Teams / Phase 4 Activity Feed sẽ thêm channel tại đây.)
 
 import { createNotification, BROADCAST_EMAIL } from './notificationService';
 import { sendEmailForEvent } from './channels/emailChannel';
 import { sendTeamsActivityForEvent } from './channels/teamsActivityChannel';
 import { NotificationType } from './types';
+import { renderNotificationContent, buildTemplateContext } from './templates/notificationTemplateService';
+import { NotificationTemplateContext } from './templates/templateConstants';
 
 export interface DmsEvent {
   type: NotificationType;
@@ -24,38 +25,66 @@ export interface DmsEvent {
   trangThai?: string;
   oldDocumentNumber?: string;
   newDocumentNumber?: string;
-  // Nội dung web notification:
+  // Metadata mở rộng (optional) cho template placeholder ({{donViSoHuu}}, {{loaiTaiLieu}}…).
+  fields?: NotificationTemplateContext;
+  // Nội dung web notification (fallback nếu render template lỗi):
   title: string;
   message: string;
   eventKey: string;
 }
 
-function docUrl(documentId: string): string {
-  return `/documents/${encodeURIComponent(documentId)}`;
+/** Gom field rời rạc của event → context render template. */
+function contextFor(ev: DmsEvent): NotificationTemplateContext {
+  return buildTemplateContext({
+    id: ev.documentId,
+    soVanBan: ev.documentNumber,
+    trichYeu: ev.documentTitle,
+    ngayBanHanh: ev.ngayBanHanh,
+    trangThai: ev.trangThai,
+    // donViSoanThao là đơn vị org duy nhất có sẵn từ upload → dùng cho cả 2 placeholder org.
+    donViSoHuu: ev.fields?.donViSoHuu ?? ev.donViSoanThao,
+    donViPhatHanh: ev.fields?.donViPhatHanh ?? ev.donViSoanThao,
+    actorEmail: ev.actorEmail,
+    oldDocumentNumber: ev.oldDocumentNumber,
+    newDocumentNumber: ev.newDocumentNumber,
+    ...ev.fields, // rich override nếu caller cung cấp
+  });
 }
 
 export async function dispatchNotification(ev: DmsEvent): Promise<void> {
-  // 1) Web notification. recipientEmail = BROADCAST_EMAIL ("__ALL__") → 1 item dùng chung cho mọi user;
-  //    nếu không set → cá nhân (actor). createdByEmail luôn là actor (người gây ra sự kiện).
+  const ctx = contextFor(ev);
+
+  // 1) Web notification — nội dung từ template 'web'. enabled=false → bỏ qua bell.
   try {
-    await createNotification({
-      userEmail: ev.recipientEmail ?? ev.actorEmail,
-      type: ev.type,
-      title: ev.title,
-      message: ev.message,
-      documentId: ev.documentId,
-      documentNumber: ev.documentNumber,
-      documentTitle: ev.documentTitle,
-      url: docUrl(ev.documentId),
-      createdByEmail: ev.actorEmail,
-      eventKey: ev.eventKey,
-    });
+    const web = await renderNotificationContent(ev.type, 'web', ctx);
+    if (web.enabled) {
+      const message =
+        [web.body, web.detail]
+          .map((s) => s.trim())
+          .filter((s) => s && s !== '—')
+          .join('\n') || ev.message;
+      await createNotification({
+        userEmail: ev.recipientEmail ?? ev.actorEmail,
+        type: ev.type,
+        title: web.title || ev.title,
+        message,
+        documentId: ev.documentId,
+        documentNumber: ev.documentNumber,
+        documentTitle: ev.documentTitle,
+        url: web.actionUrl,
+        createdByEmail: ev.actorEmail,
+        eventKey: ev.eventKey,
+      });
+    } else {
+      // eslint-disable-next-line no-console
+      console.log('[dms-noti][web] skipped', JSON.stringify({ eventKey: ev.eventKey, reason: 'template disabled' }));
+    }
   } catch (e) {
     // eslint-disable-next-line no-console
     console.error('[dms-noti][web] create failed:', e instanceof Error ? e.message : String(e));
   }
 
-  // 2) Email channel (best-effort, tự quyết định enabled/recipient/type).
+  // 2) Email channel (best-effort; gating enabled/recipient/type + template enabled bên trong).
   await sendEmailForEvent({
     type: ev.type,
     documentId: ev.documentId,
@@ -67,9 +96,10 @@ export async function dispatchNotification(ev: DmsEvent): Promise<void> {
     oldDocumentNumber: ev.oldDocumentNumber,
     newDocumentNumber: ev.newDocumentNumber,
     eventKey: ev.eventKey,
+    ctx,
   });
 
-  // 3) Teams Activity Feed channel (best-effort — KHÔNG throw, không làm hỏng upload/replace/edit).
+  // 3) Teams Activity Feed channel (best-effort — KHÔNG throw).
   //    Phase 1: gửi tới actor (hoặc DMS_TEAMS_ACTIVITY_TEST_RECIPIENT), KHÔNG broadcast.
   try {
     await sendTeamsActivityForEvent({
@@ -79,6 +109,7 @@ export async function dispatchNotification(ev: DmsEvent): Promise<void> {
       documentNumber: ev.documentNumber,
       documentTitle: ev.documentTitle,
       eventKey: ev.eventKey,
+      ctx,
     });
   } catch (e) {
     // eslint-disable-next-line no-console

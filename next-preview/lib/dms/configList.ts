@@ -161,6 +161,23 @@ export async function upsertConfigRecord(
   return { itemId: created.id, configKey, json, updatedAt, updatedBy, isActive: true };
 }
 
+/**
+ * Xóa bản ghi config theo ConfigKey (dùng cho "reset về mặc định").
+ * Trả true nếu có item bị xóa, false nếu không tồn tại (idempotent — KHÔNG ném khi đã trống).
+ */
+export async function deleteConfigRecord(accessToken: string, configKey: string): Promise<boolean> {
+  const listId = await resolveConfigListId(accessToken);
+  if (!listId) return false;
+  const existing = await getConfigRecord(accessToken, configKey).catch(() => null);
+  if (!existing) return false;
+  const site = await resolveSiteId(accessToken);
+  await graphFetch(`/sites/${site.id}/lists/${listId}/items/${existing.itemId}`, {
+    accessToken,
+    method: 'DELETE',
+  });
+  return true;
+}
+
 // ── Provisioning (seed list DMSConfig) ─────────────────────────────────────────
 type ColKind = 'text' | 'note' | 'boolean';
 // KHÔNG gồm Title (cột hệ thống tự có khi tạo list).
