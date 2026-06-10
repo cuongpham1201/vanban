@@ -2,10 +2,10 @@
   "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.16/MicrosoftTeams.schema.json",
   "manifestVersion": "1.16",
   "id": "b7c24a20-3b43-4fb7-86bc-1a0e4e4e96de",
-  "version": "1.0.17",
+  "version": "1.0.18",
   "packageName": "com.biahalong.vanbandieuhanh",
   "developer": {
-    "name": "Công ty CP Bia và Nước giải khát Hạ Long",
+    "name": "Bia Ha Long",
     "websiteUrl": "https://vanban.biahalong.com",
     "privacyUrl": "https://vanban.biahalong.com",
     "termsOfUseUrl": "https://vanban.biahalong.com"

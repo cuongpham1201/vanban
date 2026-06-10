@@ -118,9 +118,10 @@
 /* APP SHELL */
 .appbar { height: 52px; background: var(--navy-700); color: #fff; display: flex; align-items: center;
   gap: var(--sp-4); padding: 0 var(--sp-5); position: relative; z-index: 20; }
-.appbar .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .01em; }
-.appbar .logo .mark { width: 30px; height: 30px; border-radius: var(--r-sm);
-  background: #fff url('/bhl-star.png') center/20px no-repeat; display: grid; place-items: center; }
+.appbar .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .01em; min-width: 0; }
+/* Logo trắng "BIA HALONG" trên header xanh — giới hạn chiều cao, rộng tự động, không tràn. */
+.appbar .logo .logo-img { height: 34px; width: auto; max-width: 170px; object-fit: contain; display: block; flex: 0 0 auto; }
+@media (max-width: 767px) { .appbar .logo .logo-img { height: 28px; max-width: 120px; } }
 .appbar .spacer { flex: 1; }
 .appbar .gsearch { flex: 0 1 460px; display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,.12);
   border: 1px solid rgba(255,255,255,.18); border-radius: var(--r-sm); padding: 7px 12px; color: rgba(255,255,255,.85);

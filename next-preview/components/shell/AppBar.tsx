@@ -38,7 +38,8 @@ export default function AppBar({ onMenu }: { onMenu?: () => void } = {}): React.
         <Icon name="list" />
       </button>
       <div className="logo">
-        <span className="mark" />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img className="logo-img" src="/logo-biahalong-white.png" alt="Bia Hạ Long" />
         <span>Quản lý văn bản</span>
       </div>
       <div className="spacer" />
