@@ -108,6 +108,9 @@ export default function DashboardPage(): React.ReactElement {
               ? drill('trangThai', 'Đang lưu hành')
               : key === 'expired'
               ? drill('trangThai', 'Hết hiệu lực')
+              : key === 'expiringSoon'
+              ? // Khớp đúng nhãn facet trạng thái (statusOf → 'Sắp hết hiệu lực' khi còn hiệu lực + ≤30 ngày).
+                drill('trangThai', 'Sắp hết hiệu lực')
               : '/search'
           }
         />

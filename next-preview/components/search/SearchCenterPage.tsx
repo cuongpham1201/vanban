@@ -218,16 +218,25 @@ export default function SearchCenterPage(): React.ReactElement {
   }, [visibleKeys]);
 
   // Helper: lọc theo facet đã chọn (chỉ facet đang hiển thị), có thể bỏ qua 1 facet (cho contextual count).
+  //
+  // BUG#14B + đồng bộ count/result: "ẩn Hết hiệu lực mặc định" là RÀNG BUỘC NGẦM trên dimension
+  // trạng thái (isExpired ⟺ giá trị facet trangThai = "Hết hiệu lực"). Vì vậy ràng buộc này được áp
+  // dụng GIỐNG NHAU cho cả facet count lẫn kết quả, và CHỈ được bỏ qua khi đang đếm chính facet
+  // 'trangThai' (để lộ tùy chọn "Hết hiệu lực"/"Sắp hết hiệu lực" cho user opt-in). Nhờ đó facet count
+  // LUÔN khớp số kết quả khi tick (vd "Thiếu bản mềm").
   const applyFacets = React.useCallback(
-    (docs: IDocument[], exceptKey?: string): IDocument[] =>
-      docs.filter((d) =>
-        orderedDefs.every((def) => {
+    (docs: IDocument[], exceptKey?: string): IDocument[] => {
+      const hideExpiredHere = !showExpired && exceptKey !== 'trangThai';
+      return docs.filter((d) => {
+        if (hideExpiredHere && isExpired(d)) return false;
+        return orderedDefs.every((def) => {
           if (def.key === exceptKey) return true;
           const sel = selected[def.key];
           return !sel || sel.size === 0 || sel.has(def.get(d));
-        })
-      ),
-    [selected, orderedDefs]
+        });
+      });
+    },
+    [selected, orderedDefs, showExpired]
   );
 
   // BUG#10/#15: CONTEXTUAL facet count — count trên tập đã áp dụng MỌI filter khác (trừ facet đang tính).
@@ -253,10 +262,8 @@ export default function SearchCenterPage(): React.ReactElement {
     [afterKeyword, applyFacets, orderedDefs]
   );
 
-  const filtered = React.useMemo(() => {
-    const byFacets = applyFacets(afterKeyword);
-    return showExpired ? byFacets : byFacets.filter((d) => !isExpired(d));
-  }, [afterKeyword, applyFacets, showExpired]);
+  // applyFacets đã tự áp dụng ẩn-Hết-hiệu-lực (trừ khi user opt-in) → count facet == số kết quả.
+  const filtered = React.useMemo(() => applyFacets(afterKeyword), [afterKeyword, applyFacets]);
 
   const viewDocs: SearchDoc[] = React.useMemo(() => sortDocuments(filtered, sort).map(toSearchDoc), [filtered, sort]);
 
