@@ -39,7 +39,7 @@ export default function AppBar({ onMenu }: { onMenu?: () => void } = {}): React.
       </button>
       <div className="logo">
         <span className="mark" />
-        <span>BHL <span style={{ fontWeight: 500, opacity: 0.85 }}>- Văn bản điều hành</span></span>
+        <span>Quản lý văn bản</span>
       </div>
       <div className="spacer" />
       <div className="gsearch" role="search">

@@ -12,7 +12,7 @@ import * as React from 'react';
 const CONTENT_URL = 'https://vanban.biahalong.com/search?inTeams=1';
 const WEBSITE_URL = 'https://vanban.biahalong.com/search';
 const ENTITY_ID = 'bhl-dms-search';
-const TAB_NAME = 'Văn bản điều hành';
+const TAB_NAME = 'Quản lý văn bản';
 
 interface Steps {
   loaded: boolean;
@@ -143,9 +143,9 @@ export default function TeamsConfigPage(): React.ReactElement {
       }}
     >
       <div>
-        <div style={{ fontSize: 18, fontWeight: 700, color: '#143f7e' }}>Cấu hình tab Văn bản điều hành</div>
+        <div style={{ fontSize: 18, fontWeight: 700, color: '#143f7e' }}>Quản lý văn bản</div>
         <p style={{ fontSize: 14, color: '#586675', maxWidth: 420, lineHeight: 1.5, margin: '8px 0 0' }}>
-          Tab sẽ mở Trung tâm tìm kiếm văn bản.
+          Hệ thống Quản lý văn bản của Công ty CP Bia và Nước giải khát Hạ Long
         </p>
         <p style={{ fontSize: 13, color: ready ? '#1f7a4d' : '#6f7e8e', margin: '8px 0 0' }}>
           {ready ? 'Sẵn sàng — bấm "Lưu" (Save) để thêm tab.' : 'Đang khởi tạo Microsoft Teams…'}

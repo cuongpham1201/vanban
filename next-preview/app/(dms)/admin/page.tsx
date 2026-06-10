@@ -6,7 +6,7 @@ import AdminCenterPage from '@/components/admin/AdminCenterPage';
 // UI ONLY: mock state local, KHÔNG kết nối SharePoint, KHÔNG API write. Menu "Quản trị"
 // đã có sẵn trong SideNav (gated canWrite). Không đổi backend/auth/Search Center.
 export const metadata = {
-  title: 'Quản trị · BHL - Văn bản điều hành',
+  title: 'Quản trị · Quản lý văn bản',
 };
 
 export default function AdminRoute(): React.ReactElement {

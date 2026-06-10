@@ -3,8 +3,8 @@ import './globals.css';
 import Providers from './Providers';
 
 export const metadata: Metadata = {
-  title: 'BHL - Văn bản điều hành',
-  description: 'Hệ thống quản lý văn bản điều hành — Công ty CP Bia Hạ Long',
+  title: 'Quản lý văn bản',
+  description: 'Hệ thống Quản lý văn bản của Công ty CP Bia và Nước giải khát Hạ Long',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }): React.ReactElement {

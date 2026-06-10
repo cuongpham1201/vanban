@@ -4,7 +4,7 @@ import SearchCenterPage from '@/components/search/SearchCenterPage';
 
 // Route /search — port từ dms-design/SearchCenter.html. Dữ liệu thật qua /api/documents.
 export const metadata = {
-  title: 'Trung tâm tìm kiếm · BHL - Văn bản điều hành',
+  title: 'Trung tâm tìm kiếm · Quản lý văn bản',
 };
 
 // Suspense bao quanh SearchCenterPage vì component dùng useSearchParams() (đọc ?q=).

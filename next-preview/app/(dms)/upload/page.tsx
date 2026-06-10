@@ -10,7 +10,7 @@ import UploadWizardPage from '@/components/upload/UploadWizardPage';
 // Không có quyền → AccessDenied (không render wizard/form).
 export const dynamic = 'force-dynamic';
 export const metadata = {
-  title: 'Tải lên văn bản · BHL - Văn bản điều hành',
+  title: 'Tải lên văn bản · Quản lý văn bản',
 };
 
 export default async function UploadRoute(): Promise<React.ReactElement> {

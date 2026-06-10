@@ -98,7 +98,7 @@ export function buildEmailHtml(input: {
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f4f8;padding:24px 0">
     <tr><td align="center">
       <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(13,24,48,.08)">
-        <tr><td style="background:#143f7e;padding:18px 28px;color:#ffffff;font-size:18px;font-weight:700;letter-spacing:.01em">BHL DMS</td></tr>
+        <tr><td style="background:#143f7e;padding:18px 28px;color:#ffffff;font-size:18px;font-weight:700;letter-spacing:.01em">Quản lý văn bản</td></tr>
         <tr><td style="padding:24px 28px 8px;color:#0a2444;font-size:18px;font-weight:700">${esc(heading)}</td></tr>
         <tr><td style="padding:4px 28px 8px">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rowsHtml}</table>
@@ -107,7 +107,7 @@ export function buildEmailHtml(input: {
           <a href="${esc(link)}" style="display:inline-block;background:#14498b;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:12px 22px;border-radius:8px">${esc(actionLabel || 'MỞ VĂN BẢN')}</a>
           <div style="margin-top:12px;font-size:12px;color:#97a3b2;word-break:break-all">${esc(link)}</div>
         </td></tr>
-        <tr><td style="background:#f7f9fc;padding:16px 28px;color:#6f7e8e;font-size:12px;border-top:1px solid #eaeef3">Hệ thống Quản lý Văn bản BHL DMS</td></tr>
+        <tr><td style="background:#f7f9fc;padding:16px 28px;color:#6f7e8e;font-size:12px;border-top:1px solid #eaeef3">Quản lý văn bản<br>Công ty CP Bia và Nước giải khát Hạ Long</td></tr>
       </table>
     </td></tr>
   </table>
@@ -130,7 +130,7 @@ export function buildEmailContent(i: EmailContentInput): EmailContent {
       <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(13,24,48,.08)">
         <!-- header -->
         <tr><td style="background:#143f7e;padding:18px 28px;color:#ffffff;font-size:18px;font-weight:700;letter-spacing:.01em">
-          BHL DMS
+          Quản lý văn bản
         </td></tr>
         <!-- title -->
         <tr><td style="padding:24px 28px 8px;color:#0a2444;font-size:18px;font-weight:700">
@@ -156,7 +156,7 @@ export function buildEmailContent(i: EmailContentInput): EmailContent {
         </td></tr>
         <!-- footer -->
         <tr><td style="background:#f7f9fc;padding:16px 28px;color:#6f7e8e;font-size:12px;border-top:1px solid #eaeef3">
-          Hệ thống Quản lý Văn bản BHL DMS
+          Quản lý văn bản<br>Công ty CP Bia và Nước giải khát Hạ Long
         </td></tr>
       </table>
     </td></tr>

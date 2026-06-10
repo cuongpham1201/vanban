@@ -10,7 +10,7 @@ import ReplacePage from '@/components/replace/ReplacePage';
 // Không có quyền → AccessDenied (không render wizard).
 export const dynamic = 'force-dynamic';
 export const metadata = {
-  title: 'Thay thế văn bản · BHL - Văn bản điều hành',
+  title: 'Thay thế văn bản · Quản lý văn bản',
 };
 
 // Suspense bao quanh vì ReplacePage dùng useSearchParams() (đọc ?old=).

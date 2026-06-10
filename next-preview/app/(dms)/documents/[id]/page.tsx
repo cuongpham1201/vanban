@@ -4,7 +4,7 @@ import DocumentDetailPage from '@/components/document-detail/DocumentDetailPage'
 
 // Route /documents/[id] — port từ dms-design/DocumentDetail.html. Read-only.
 export const metadata = {
-  title: 'Chi tiết văn bản · BHL - Văn bản điều hành',
+  title: 'Chi tiết văn bản · Quản lý văn bản',
 };
 
 // Next.js đã tự percent-decode route param → KHÔNG decode lại (tránh double-decode

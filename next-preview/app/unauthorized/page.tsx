@@ -28,7 +28,7 @@ export default function UnauthorizedPage(): React.ReactElement {
       >
         <h1 style={{ fontSize: 20, margin: '0 0 8px', color: '#a4262c' }}>Không có quyền truy cập</h1>
         <p style={{ color: '#605e5c', margin: '0 0 20px', fontSize: 14, lineHeight: 1.5 }}>
-          Hệ thống Văn bản điều hành chỉ dành cho tài khoản Microsoft 365 của Bia Hạ Long
+          Hệ thống Quản lý văn bản chỉ dành cho tài khoản Microsoft 365 của Công ty CP Bia và Nước giải khát Hạ Long
           (<strong>@biahalong.com</strong>). Vui lòng đăng nhập bằng tài khoản công ty.
         </p>
         <button

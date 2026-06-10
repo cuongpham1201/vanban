@@ -2,21 +2,21 @@
   "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.16/MicrosoftTeams.schema.json",
   "manifestVersion": "1.16",
   "id": "b7c24a20-3b43-4fb7-86bc-1a0e4e4e96de",
-  "version": "1.0.16",
+  "version": "1.0.17",
   "packageName": "com.biahalong.vanbandieuhanh",
   "developer": {
-    "name": "Bia Hạ Long",
+    "name": "Công ty CP Bia và Nước giải khát Hạ Long",
     "websiteUrl": "https://vanban.biahalong.com",
     "privacyUrl": "https://vanban.biahalong.com",
     "termsOfUseUrl": "https://vanban.biahalong.com"
   },
   "name": {
-    "short": "Văn bản điều hành",
-    "full": "Hệ thống quản lý văn bản điều hành"
+    "short": "Quản lý văn bản",
+    "full": "Quản lý văn bản"
   },
   "description": {
-    "short": "Tra cứu và quản lý văn bản điều hành",
-    "full": "Hệ thống quản lý, tra cứu và lưu trữ văn bản điều hành của Công ty Bia Hạ Long"
+    "short": "Hệ thống Quản lý văn bản",
+    "full": "Hệ thống Quản lý văn bản của Công ty CP Bia và Nước giải khát Hạ Long"
   },
   "icons": {
     "color": "color.png",
@@ -35,7 +35,7 @@
   "staticTabs": [
     {
       "entityId": "b7c24a20-3b43-4fb7-86bc-1a0e4e4e96de",
-      "name": "Văn bản điều hành",
+      "name": "Quản lý văn bản",
       "contentUrl": "https://vanban.biahalong.com",
       "scopes": [
         "personal"
