@@ -2,11 +2,13 @@
 
 import * as React from 'react';
 import { DetailDoc } from './documentDetailTypes';
+import SoftCopyPanel from './SoftCopyPanel';
 import AttachmentsPanel from './AttachmentsPanel';
 import RelatedDocuments from './RelatedDocuments';
+import ReplacementPanel from './ReplacementPanel';
 import HistoryPanel from './HistoryPanel';
 
-export type DetailTab = 'info' | 'att' | 'rel' | 'rep' | 'tl';
+export type DetailTab = 'info' | 'soft' | 'att' | 'rel' | 'rep' | 'tl';
 type Tab = DetailTab;
 
 function Row({ k, v }: { k: string; v: React.ReactNode }): React.ReactElement {
@@ -81,40 +83,20 @@ function InfoPane({ doc }: { doc: DetailDoc }): React.ReactElement {
   );
 }
 
-function RepPane({ doc }: { doc: DetailDoc }): React.ReactElement {
-  return (
-    <>
-      <div className="sec-block" style={{ background: 'var(--navy-050)', borderColor: 'var(--navy-100)' }}>
-        <div className="h" style={{ color: 'var(--navy-600)' }}>Văn bản này thay thế</div>
-        {doc.thaythe ? (
-          <div className="relrow" style={{ background: '#fff', margin: 0 }}>
-            <div className="ficon" style={{ background: 'var(--gray-150)', color: 'var(--gray-500)' }}>PDF</div>
-            <div style={{ flex: 1 }}>
-              <div className="num">{doc.thaythe}</div>
-            </div>
-          </div>
-        ) : (
-          <div className="dd-empty">Không thay thế văn bản nào.</div>
-        )}
-      </div>
-      <div className="sec-block">
-        <div className="h">Bị thay thế bởi</div>
-        <div className="dd-empty">Chưa có — đây là phiên bản hiện hành (dữ liệu chuỗi thay thế V3 sẽ bổ sung sau).</div>
-      </div>
-    </>
-  );
-}
-
 // Panel metadata bên phải — port từ DocumentDetail.html .meta + tabs.
 // BUG#27: tab là CONTROLLED (state ở DocumentDetailPage) để quyết định việc render PDF trên mobile.
 export default function MetadataPanel({
   doc,
   tab: tabProp,
   onTab,
+  canWrite = false,
+  onChanged,
 }: {
   doc: DetailDoc;
   tab?: Tab;
   onTab?: (t: Tab) => void;
+  canWrite?: boolean;
+  onChanged?: (msg?: string) => void;
 }): React.ReactElement {
   const [tabLocal, setTabLocal] = React.useState<Tab>('info');
   const tab = tabProp ?? tabLocal;
@@ -122,12 +104,14 @@ export default function MetadataPanel({
     if (onTab) onTab(t);
     else setTabLocal(t);
   };
-  const attN = doc.editable && doc.editableSourceUrl ? 1 : 0;
+  const notify = onChanged ?? ((): void => undefined);
+  const softN = doc.editable && doc.editableSourceUrl ? 1 : 0;
   const relN = doc.relatedList.length;
   const repN = doc.thaythe ? 1 : 0;
   const tabs: [Tab, string, number][] = [
     ['info', 'Thông tin', 0],
-    ['att', 'Đính kèm', attN],
+    ['soft', 'Bản mềm', softN],
+    ['att', 'File đính kèm', 0],
     ['rel', 'Liên quan', relN],
     ['rep', 'Thay thế', repN],
     ['tl', 'Lịch sử', 0],
@@ -144,10 +128,21 @@ export default function MetadataPanel({
       </div>
       <div className="mcontent scrollbar">
         {tab === 'info' && <InfoPane doc={doc} />}
-        {tab === 'att' && <AttachmentsPanel doc={doc} />}
-        {tab === 'rel' && <RelatedDocuments doc={doc} />}
-        {tab === 'rep' && <RepPane doc={doc} />}
-        {tab === 'tl' && <HistoryPanel />}
+        {tab === 'soft' && (
+          <SoftCopyPanel
+            docId={doc.id}
+            editableSourceUrl={doc.editableSourceUrl}
+            editableSourceName={doc.editableSourceName}
+            canWrite={canWrite}
+            onChanged={notify}
+          />
+        )}
+        {tab === 'att' && <AttachmentsPanel docId={doc.id} soVanBan={doc.num} canWrite={canWrite} onChanged={notify} />}
+        {tab === 'rel' && (
+          <RelatedDocuments docId={doc.id} soVanBan={doc.num} relatedList={doc.relatedList} canWrite={canWrite} onChanged={notify} />
+        )}
+        {tab === 'rep' && <ReplacementPanel docId={doc.id} soVanBan={doc.num} thaythe={doc.thaythe} canWrite={canWrite} onChanged={notify} />}
+        {tab === 'tl' && <HistoryPanel docId={doc.id} />}
       </div>
     </aside>
   );

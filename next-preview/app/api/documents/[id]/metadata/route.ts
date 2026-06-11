@@ -13,11 +13,13 @@ export const dynamic = 'force-dynamic';
 
 // Cột metadata CHO PHÉP sửa (internal name). Loại trừ: NguoiKy (person), file name/path,
 // folder/capLuuTru, content. Cột không thuộc danh sách này bị bỏ qua.
+// LƯU Ý: HasEditableSource/EditableSourceUrl, VanBanLienQuan, VanBanThayThe KHÔNG nằm ở đây —
+// chúng do các route chuyên dụng quản lý (editable-source / relations / replacement) để giữ
+// validation (versioning bản mềm, chống vòng lặp thay thế). Tránh sửa tay qua route generic này.
 const ALLOWED_EDIT_COLUMNS = new Set<string>([
   'SoVanBan', 'NamBanHanh', 'NgayBanHanh', 'NgayHetHieuLuc', 'TrangThai', 'MucDoBaoMat',
   'TrichYeu', 'NhomTaiLieu', 'LoaiVanBanPhapLy', 'LoaiTaiLieu', 'ChuDeNghiepVu',
-  'DonViPhatHanh', 'DonViSoHuu', 'NguonMetadata', 'MetadataConfidence',
-  'HasEditableSource', 'EditableSourceUrl', 'PrimaryPdfUrl', 'Tags', 'VanBanLienQuan', 'VanBanThayThe',
+  'DonViPhatHanh', 'DonViSoHuu', 'NguonMetadata', 'MetadataConfidence', 'PrimaryPdfUrl', 'Tags',
 ]);
 
 // PATCH /api/documents/[id]/metadata — sửa metadata listItem (sandbox/allowlist).

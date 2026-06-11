@@ -8,6 +8,87 @@ import { graphFetch, type GraphFetchOptions } from '@/lib/graph/client';
 import { resolveSiteId, resolveListId, getDrives } from '@/lib/sharepoint/resolve';
 import { isDmsWriteEnabled, DMS_WRITE_DISABLED_MSG } from './writeConfig';
 import { buildFileName, normalizeMetadataPayload, validateUploadMetadata, type ValidationResult } from './writeHelpers';
+import { isEditableSourceFile } from '@dms/utils/documentPair';
+
+/** Escape chuỗi để dùng an toàn trong RegExp (tên file có thể chứa ký tự đặc biệt). */
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** Content-Type theo extension cho upload Office/PDF (Graph chấp nhận octet-stream nếu thiếu). */
+function contentTypeForExt(ext: string): string {
+  switch (ext.toLowerCase()) {
+    case 'pdf': return 'application/pdf';
+    case 'docx': return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    case 'doc': return 'application/msword';
+    case 'xlsx': return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    case 'xls': return 'application/vnd.ms-excel';
+    case 'pptx': return 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+    case 'ppt': return 'application/vnd.ms-powerpoint';
+    case 'png': return 'image/png';
+    case 'jpg': case 'jpeg': return 'image/jpeg';
+    case 'txt': return 'text/plain';
+    case 'csv': return 'text/csv';
+    case 'zip': return 'application/zip';
+    default: return 'application/octet-stream';
+  }
+}
+
+/** Làm sạch 1 segment tên folder (subfolder Attachments theo SoVanBan). */
+function sanitizeFolderSegment(s: string): string {
+  return (s ?? '').replace(/[/\\:*?"<>|#%]/g, ' ').replace(/\s+/g, ' ').replace(/^[.\s]+|[.\s]+$/g, '').trim();
+}
+
+/** Làm sạch tên file đính kèm (giữ extension). */
+function sanitizeAttachmentName(s: string): string {
+  const cleaned = (s ?? '').replace(/[/\\:*?"<>|#%]/g, ' ').replace(/\s+/g, ' ').trim();
+  return cleaned || 'file';
+}
+
+/** 1 child trong drive (file hoặc folder). */
+export interface DriveChild {
+  id: string;
+  name: string;
+  size?: number;
+  webUrl?: string;
+  file?: { mimeType?: string };
+  folder?: unknown;
+  createdDateTime?: string;
+  createdBy?: { user?: { displayName?: string; email?: string } };
+  lastModifiedDateTime?: string;
+}
+
+/** Thông tin 1 file đính kèm trả về UI. */
+export interface AttachmentInfo {
+  id: string;
+  name: string;
+  ext: string;
+  sizeKB?: number;
+  webUrl: string;
+  uploadedBy?: string;
+  uploadedAt?: string;
+}
+
+/** 1 phiên bản listItem (version history gốc SharePoint). */
+export interface RawItemVersion {
+  id: string;
+  lastModifiedDateTime?: string;
+  lastModifiedBy?: { user?: { displayName?: string; email?: string } };
+  fields?: Record<string, unknown>;
+}
+
+function toAttachmentInfo(c: DriveChild): AttachmentInfo {
+  const ext = (c.name.split('.').pop() ?? '').toLowerCase();
+  return {
+    id: c.id,
+    name: c.name,
+    ext,
+    sizeKB: typeof c.size === 'number' ? Math.round(c.size / 1024) : undefined,
+    webUrl: c.webUrl ?? '',
+    uploadedBy: c.createdBy?.user?.displayName,
+    uploadedAt: c.createdDateTime,
+  };
+}
 
 export class NotImplementedError extends Error {
   status = 501;
@@ -545,6 +626,251 @@ export class SharePointDmsService {
     }
 
     return { deleted, skipped, warnings };
+  }
+
+  // ═══════════════════ DETAIL PHASE: bản mềm / đính kèm / quan hệ / thay thế / lịch sử ═══════════════════
+
+  /** READ: ngữ cảnh file/folder của 1 listItem (driveId, folder cha, tên file, base name). */
+  async getItemFolderContext(listItemId: string): Promise<{
+    driveId: string; parentFolderId: string; fileName: string; baseName: string; webUrl: string;
+  }> {
+    const site = await resolveSiteId(this.accessToken);
+    const list = await resolveListId(this.accessToken);
+    const di = await graphFetch<{
+      id: string; name?: string; webUrl?: string; parentReference?: { driveId?: string; id?: string };
+    }>(
+      `/sites/${site.id}/lists/${list.id}/items/${listItemId}/driveItem?$select=id,name,webUrl,parentReference`,
+      { accessToken: this.accessToken }
+    );
+    const driveId = di.parentReference?.driveId ?? '';
+    const parentFolderId = di.parentReference?.id ?? '';
+    const fileName = di.name ?? '';
+    if (!driveId || !parentFolderId || !fileName) {
+      throw new Error('Không xác định được vị trí file của văn bản (driveItem thiếu thông tin).');
+    }
+    return { driveId, parentFolderId, fileName, baseName: fileName.replace(/\.[^.]+$/, ''), webUrl: di.webUrl ?? '' };
+  }
+
+  /** READ: liệt kê children của 1 folder (file + folder). */
+  async listFolderChildren(driveId: string, folderId: string): Promise<DriveChild[]> {
+    const r = await graphFetch<{ value: DriveChild[] }>(
+      `/drives/${driveId}/items/${folderId}/children?$top=400&$select=id,name,size,file,folder,webUrl,createdDateTime,createdBy,lastModifiedDateTime`,
+      { accessToken: this.accessToken }
+    );
+    return r.value ?? [];
+  }
+
+  /** WRITE: đổi tên 1 driveItem. */
+  async renameDriveItem(driveId: string, itemId: string, newName: string): Promise<void> {
+    this.assertWriteEnabled();
+    await this.graphWrite(`/drives/${driveId}/items/${itemId}`, {
+      method: 'PATCH', body: JSON.stringify({ name: newName }), headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  /** WRITE: tìm hoặc tạo folder con theo tên (tạo folder = drive write, OK với Sites.ReadWrite.All). */
+  async ensureChildFolder(driveId: string, parentFolderId: string, name: string): Promise<string> {
+    const children = await this.listFolderChildren(driveId, parentFolderId);
+    const hit = children.find((c) => c.folder && c.name.toLowerCase() === name.toLowerCase());
+    if (hit) {
+      return hit.id;
+    }
+    this.assertWriteEnabled();
+    const created = await this.graphWrite<{ id: string }>(
+      `/drives/${driveId}/items/${parentFolderId}/children`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ name, folder: {}, '@microsoft.graph.conflictBehavior': 'fail' }),
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
+    return created.id;
+  }
+
+  /** WRITE: xóa driveItem (ném lỗi nếu thất bại — khác deleteUploadedFile best-effort). */
+  async deleteDriveItem(driveId: string, itemId: string): Promise<void> {
+    this.assertWriteEnabled();
+    await this.graphWrite(`/drives/${driveId}/items/${itemId}`, { method: 'DELETE' });
+  }
+
+  /**
+   * WRITE: upload (lần đầu) hoặc thay thế bản mềm chính. Tên = <base PDF>.<ext>.
+   * Thay thế: rename bản cũ -> <base>.verN.<extCũ> rồi upload bản mới. Upload lỗi sau rename -> rename ngược.
+   * Patch cột HasEditableSource (boolean) là thứ yếu — EditableSourceUrl (hyperlink) KHÔNG ghi được
+   * qua Graph (BUG#18) nên bỏ; pairDocuments nhận bản mềm theo tên file trong cùng folder.
+   */
+  async putEditableSource(
+    listItemId: string, uploadName: string, buffer: ArrayBuffer
+  ): Promise<{ webUrl: string; fileName: string; replaced: boolean; archivedName?: string; warning?: string }> {
+    this.assertWriteEnabled();
+    if (buffer.byteLength > MAX_UPLOAD_BYTES) {
+      throw new UploadTooLargeError(buffer.byteLength);
+    }
+    const ext = (uploadName.split('.').pop() ?? '').toLowerCase();
+    if (!isEditableSourceFile(`.${ext}`)) {
+      throw new Error('Bản mềm chỉ chấp nhận .docx/.doc/.xlsx/.xls/.pptx/.ppt.');
+    }
+    const ctx = await this.getItemFolderContext(listItemId);
+    const targetName = `${ctx.baseName}.${ext}`;
+    const children = await this.listFolderChildren(ctx.driveId, ctx.parentFolderId);
+    const baseLower = ctx.baseName.toLowerCase();
+
+    // Bản mềm hiện tại = file editable cùng base, KHÔNG phải bản .verN (đã lưu trữ).
+    const verRe = new RegExp('^' + escapeRegExp(ctx.baseName) + '\\.ver(\\d+)\\.', 'i');
+    const current = children.find((c) => {
+      if (c.folder || verRe.test(c.name)) {
+        return false;
+      }
+      const cExt = (c.name.split('.').pop() ?? '').toLowerCase();
+      return c.name.replace(/\.[^.]+$/, '').toLowerCase() === baseLower && isEditableSourceFile(`.${cExt}`);
+    });
+
+    let replaced = false;
+    let archivedName: string | undefined;
+    let archivedFrom: { id: string; oldName: string } | undefined;
+    if (current) {
+      let maxN = 0;
+      for (const c of children) {
+        const m = verRe.exec(c.name);
+        if (m) {
+          maxN = Math.max(maxN, Number(m[1]));
+        }
+      }
+      const curExt = (current.name.split('.').pop() ?? ext).toLowerCase();
+      archivedName = `${ctx.baseName}.ver${maxN + 1}.${curExt}`;
+      await this.renameDriveItem(ctx.driveId, current.id, archivedName);
+      replaced = true;
+      archivedFrom = { id: current.id, oldName: current.name };
+    }
+
+    let uploaded: { driveItemId: string; webUrl: string; listItemId: string };
+    try {
+      uploaded = await this.uploadFile(ctx.driveId, ctx.parentFolderId, targetName, buffer, contentTypeForExt(ext));
+    } catch (e) {
+      if (archivedFrom) {
+        await this.renameDriveItem(ctx.driveId, archivedFrom.id, archivedFrom.oldName).catch(() => undefined);
+      }
+      throw e;
+    }
+
+    let warning: string | undefined;
+    try {
+      const site = await resolveSiteId(this.accessToken);
+      const list = await resolveListId(this.accessToken);
+      // Chỉ HasEditableSource (boolean) ghi được; EditableSourceUrl (hyperlink) Graph không PATCH được.
+      const { coerced } = await this.coerceFields({ HasEditableSource: 'true' });
+      if (Object.keys(coerced).length) {
+        await this.patchMetadata(site.id, list.id, listItemId, coerced);
+      }
+    } catch {
+      warning = 'Đã tải bản mềm nhưng cập nhật cờ HasEditableSource chưa thành công (vẫn nhận bản mềm theo tên file).';
+    }
+    return { webUrl: uploaded.webUrl, fileName: targetName, replaced, archivedName, warning };
+  }
+
+  /** READ: danh sách file đính kèm trong Attachments/<SoVanBan> (trả [] nếu chưa có folder). */
+  async listAttachments(listItemId: string, soVanBan: string): Promise<AttachmentInfo[]> {
+    const ctx = await this.getItemFolderContext(listItemId);
+    const sub = sanitizeFolderSegment(soVanBan) || 'VanBan';
+    const level1 = await this.listFolderChildren(ctx.driveId, ctx.parentFolderId);
+    const attachRoot = level1.find((c) => c.folder && c.name.toLowerCase() === 'attachments');
+    if (!attachRoot) {
+      return [];
+    }
+    const level2 = await this.listFolderChildren(ctx.driveId, attachRoot.id);
+    const docFolder = level2.find((c) => c.folder && c.name.toLowerCase() === sub.toLowerCase());
+    if (!docFolder) {
+      return [];
+    }
+    const files = await this.listFolderChildren(ctx.driveId, docFolder.id);
+    return files.filter((f) => f.file).map(toAttachmentInfo);
+  }
+
+  /** WRITE: upload 1 file đính kèm vào Attachments/<SoVanBan>. */
+  async uploadAttachment(
+    listItemId: string, soVanBan: string, fileName: string, buffer: ArrayBuffer
+  ): Promise<AttachmentInfo> {
+    this.assertWriteEnabled();
+    if (buffer.byteLength > MAX_UPLOAD_BYTES) {
+      throw new UploadTooLargeError(buffer.byteLength);
+    }
+    const ctx = await this.getItemFolderContext(listItemId);
+    const sub = sanitizeFolderSegment(soVanBan) || 'VanBan';
+    const attachRoot = await this.ensureChildFolder(ctx.driveId, ctx.parentFolderId, 'Attachments');
+    const docFolderId = await this.ensureChildFolder(ctx.driveId, attachRoot, sub);
+    const ext = (fileName.split('.').pop() ?? '').toLowerCase();
+    const safeName = sanitizeAttachmentName(fileName);
+    const up = await this.uploadFile(ctx.driveId, docFolderId, safeName, buffer, contentTypeForExt(ext));
+    const meta = await graphFetch<DriveChild>(
+      `/drives/${ctx.driveId}/items/${up.driveItemId}?$select=id,name,size,file,webUrl,createdDateTime,createdBy`,
+      { accessToken: this.accessToken }
+    );
+    return toAttachmentInfo(meta);
+  }
+
+  /** WRITE: xóa 1 file đính kèm (xác minh thuộc về văn bản này trước khi xóa). */
+  async deleteAttachment(listItemId: string, soVanBan: string, attachmentId: string): Promise<void> {
+    this.assertWriteEnabled();
+    const atts = await this.listAttachments(listItemId, soVanBan);
+    if (!atts.some((a) => a.id === attachmentId)) {
+      throw new Error('Không tìm thấy file đính kèm để xóa (hoặc không thuộc văn bản này).');
+    }
+    const ctx = await this.getItemFolderContext(listItemId);
+    await this.deleteDriveItem(ctx.driveId, attachmentId);
+  }
+
+  /** WRITE: ghi thẳng cột text VanBanLienQuan (danh sách SoVanBan, '' để xóa). */
+  async setRelated(listItemId: string, value: string): Promise<void> {
+    this.assertWriteEnabled();
+    const site = await resolveSiteId(this.accessToken);
+    const list = await resolveListId(this.accessToken);
+    await this.patchMetadata(site.id, list.id, listItemId, { VanBanLienQuan: value });
+  }
+
+  /**
+   * WRITE: A thay thế B — A.VanBanThayThe = SoVanBan(B); B.TrangThai = 'Hết hiệu lực'.
+   * Caller phải validate không tự-thay-thế / vòng lặp. Patch B lỗi -> trả warning (A vẫn liên kết).
+   */
+  async setReplacement(aListItemId: string, bListItemId: string, bSoVanBan: string): Promise<{ warning?: string }> {
+    this.assertWriteEnabled();
+    const site = await resolveSiteId(this.accessToken);
+    const list = await resolveListId(this.accessToken);
+    const { coerced: aC, skipped: aS } = await this.coerceFields({ VanBanThayThe: bSoVanBan });
+    if (!('VanBanThayThe' in aC)) {
+      throw new Error(`Không ghi được cột VanBanThayThe (${aS.join(', ') || 'cột không tồn tại/không hợp lệ'}).`);
+    }
+    await this.patchMetadata(site.id, list.id, aListItemId, aC);
+    let warning: string | undefined;
+    try {
+      const { coerced: bC } = await this.coerceFields({ TrangThai: 'Hết hiệu lực' });
+      if ('TrangThai' in bC) {
+        await this.patchMetadata(site.id, list.id, bListItemId, bC);
+      } else {
+        warning = 'Đã liên kết thay thế nhưng giá trị "Hết hiệu lực" không khớp choice TrangThai — chưa đổi trạng thái văn bản cũ.';
+      }
+    } catch {
+      warning = 'Đã liên kết thay thế nhưng cập nhật trạng thái văn bản cũ thất bại.';
+    }
+    return { warning };
+  }
+
+  /** WRITE: hủy liên kết thay thế trên A (xóa VanBanThayThe). KHÔNG tự khôi phục hiệu lực B (theo rule). */
+  async clearReplacement(aListItemId: string): Promise<void> {
+    this.assertWriteEnabled();
+    const site = await resolveSiteId(this.accessToken);
+    const list = await resolveListId(this.accessToken);
+    await this.patchMetadata(site.id, list.id, aListItemId, { VanBanThayThe: '' });
+  }
+
+  /** READ: version history gốc của listItem (kèm fields để diff nhãn hành động). */
+  async getItemVersions(listItemId: string): Promise<RawItemVersion[]> {
+    const site = await resolveSiteId(this.accessToken);
+    const list = await resolveListId(this.accessToken);
+    const r = await graphFetch<{ value: RawItemVersion[] }>(
+      `/sites/${site.id}/lists/${list.id}/items/${listItemId}/versions?$expand=fields&$top=50`,
+      { accessToken: this.accessToken }
+    );
+    return r.value ?? [];
   }
 
   /**

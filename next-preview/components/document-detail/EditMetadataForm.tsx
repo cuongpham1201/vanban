@@ -14,7 +14,11 @@ interface EditField {
   full?: boolean;
   staticChoices?: string[];
   req?: boolean;
+  ro?: boolean; // hiển thị read-only (quản lý ở tab khác), KHÔNG gửi khi lưu
 }
+
+// Cột do tab chuyên dụng quản lý — KHÔNG gửi từ form sửa metadata (tránh ghi đè/bypass validation).
+const MANAGED_BY_TABS = new Set(['HasEditableSource', 'EditableSourceUrl', 'VanBanLienQuan', 'VanBanThayThe']);
 interface FieldGroup {
   title: string;
   fields: EditField[];
@@ -48,11 +52,9 @@ const GROUPS: FieldGroup[] = [
   {
     title: 'Liên kết / Nguồn',
     fields: [
-      { col: 'HasEditableSource', label: 'Có bản mềm', type: 'select', staticChoices: ['true', 'false'] },
-      { col: 'EditableSourceUrl', label: 'URL bản mềm', type: 'text', full: true },
+      { col: 'HasEditableSource', label: 'Có bản mềm', type: 'text', ro: true },
+      { col: 'EditableSourceUrl', label: 'URL bản mềm (quản lý ở tab Bản mềm)', type: 'text', full: true, ro: true },
       { col: 'Tags', label: 'Tags', type: 'text', full: true },
-      { col: 'VanBanLienQuan', label: 'Văn bản liên quan', type: 'text', full: true },
-      { col: 'VanBanThayThe', label: 'Văn bản thay thế', type: 'text' },
     ],
   },
 ];
@@ -114,11 +116,18 @@ export default function EditMetadataForm({
     setSaving(true);
     setError(null);
     try {
+      // Loại cột do tab chuyên dụng quản lý (bản mềm / liên quan / thay thế) khỏi payload.
+      const payload: Record<string, string> = {};
+      for (const [k, val] of Object.entries(form)) {
+        if (!MANAGED_BY_TABS.has(k)) {
+          payload[k] = val;
+        }
+      }
       const res = await fetch(`/api/documents/${encodeURIComponent(doc.id)}/metadata`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
       const j = await res.json();
       if (res.status === 403) {
@@ -152,7 +161,9 @@ export default function EditMetadataForm({
                   <label className="field-label" style={{ display: 'block', marginBottom: 4 }}>
                     {f.label}{f.req ? <span style={{ color: 'var(--danger-600, #c0362c)' }}> *</span> : null}
                   </label>
-                  {f.type === 'select' ? (
+                  {f.ro ? (
+                    <input className="input" value={form[f.col] ?? ''} readOnly disabled style={{ width: '100%', background: 'var(--gray-050)', color: 'var(--gray-500)' }} />
+                  ) : f.type === 'select' ? (
                     <select className="select" value={form[f.col] ?? ''} onChange={(e) => set(f.col, e.target.value)} style={{ width: '100%' }}>
                       <option value="">— Chọn —</option>
                       {form[f.col] && !optionsFor(f).includes(form[f.col]) && <option value={form[f.col]}>{form[f.col]} (hiện tại)</option>}

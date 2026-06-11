@@ -157,7 +157,20 @@ export default function DocumentDetailPage({ id }: { id: string }): React.ReactE
       <DocumentHeader doc={detail} returnUrl={returnUrl} canWrite={canWrite} onEdit={() => setEditing(true)} onDelete={() => setConfirmDelete(true)} />
       <div className={`split ${isMobile && tab !== 'info' ? 'tab-only' : ''}`}>
         {(!isMobile || tab === 'info') && <DocumentPreview doc={detail} />}
-        <MetadataPanel doc={detail} tab={tab} onTab={setTab} />
+        <MetadataPanel
+          doc={detail}
+          tab={tab}
+          onTab={setTab}
+          canWrite={canWrite}
+          onChanged={(msg) => {
+            _detailCache.delete(id); // buộc load() lấy bản mới
+            void load();
+            if (msg) {
+              setToast(msg);
+              window.setTimeout(() => setToast(null), 4000);
+            }
+          }}
+        />
       </div>
 
       {editing && (
