@@ -6,9 +6,10 @@ import Icon from '@/components/shell/Icon';
 import { IDocument } from '@dms/models/IDocument';
 import { isExpired } from '@dms/utils/standardization';
 import {
-  FACET_DEFS, FacetDef, matchesKeyword, toSearchDoc, SearchDoc,
+  FACET_DEFS, FacetDef, toSearchDoc, SearchDoc,
   SortKey, SORT_OPTIONS, DEFAULT_SORT, sortDocuments,
   SPECIAL_SORTED_FACETS, compareFacetItems,
+  scoreDocument, scoreDocumentDetailed, MIN_RELEVANCE, normalizeVi,
 } from './searchTypes';
 import { loadFilterConfig, subscribeFilterConfig, fetchFilterConfig } from '@/lib/dms/filterConfig';
 import SearchSubBar, { ViewMode } from './SearchSubBar';
@@ -179,7 +180,35 @@ export default function SearchCenterPage(): React.ReactElement {
   }, []);
 
   const kw = dq.trim();
-  const afterKeyword = React.useMemo(() => (raw ? raw.filter((d) => matchesKeyword(d, kw)) : []), [raw, kw]);
+  // Điểm relevance theo keyword (chỉ tính khi có keyword). 0 = không đủ liên quan.
+  const scoreMap = React.useMemo(() => {
+    const m = new Map<string, number>();
+    if (kw && raw) {
+      for (const d of raw) {
+        m.set(d.id, scoreDocument(d, kw));
+      }
+    }
+    return m;
+  }, [raw, kw]);
+  const afterKeyword = React.useMemo(
+    () => (raw ? (kw ? raw.filter((d) => (scoreMap.get(d.id) ?? 0) >= MIN_RELEVANCE) : raw) : []),
+    [raw, kw, scoreMap]
+  );
+
+  // Debug relevance — CHỈ dev (browser console), không hiển thị UI và không log ở production build.
+  React.useEffect(() => {
+    if (process.env.NODE_ENV === 'production' || !kw || !raw) {
+      return;
+    }
+    const top = raw
+      .map((d) => ({ d, ...scoreDocumentDetailed(d, kw) }))
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 10)
+      .map((x) => ({ num: x.d.soVanBan, title: x.d.trichYeu, score: x.score, reasons: x.reasons }));
+    // eslint-disable-next-line no-console
+    console.debug('[search-relevance]', { kw, normalized: normalizeVi(kw), before: raw.length, after: afterKeyword.length, top });
+  }, [kw, raw, afterKeyword.length]);
 
   // BUG#14B: ẩn văn bản Hết hiệu lực mặc định, trừ khi user chọn trạng thái/nhóm "Hết hiệu lực".
   const showExpired =
@@ -265,7 +294,13 @@ export default function SearchCenterPage(): React.ReactElement {
   // applyFacets đã tự áp dụng ẩn-Hết-hiệu-lực (trừ khi user opt-in) → count facet == số kết quả.
   const filtered = React.useMemo(() => applyFacets(afterKeyword), [afterKeyword, applyFacets]);
 
-  const viewDocs: SearchDoc[] = React.useMemo(() => sortDocuments(filtered, sort).map(toSearchDoc), [filtered, sort]);
+  // Có keyword + đang để sort mặc định (ngày) → ưu tiên RELEVANCE (relevance desc, rồi NgayBanHanh desc).
+  // User chủ động chọn sort khác (ngày cũ nhất / số VB / độ tin cậy) thì tôn trọng lựa chọn đó.
+  const effectiveSort: SortKey = kw && sort === DEFAULT_SORT ? 'relevance' : sort;
+  const viewDocs: SearchDoc[] = React.useMemo(
+    () => sortDocuments(filtered, effectiveSort, (d) => scoreMap.get(d.id) ?? 0).map(toSearchDoc),
+    [filtered, effectiveSort, scoreMap]
+  );
 
   const selectedDoc = React.useMemo(
     () => viewDocs.find((v) => v.id === selectedId) ?? viewDocs[0] ?? null,

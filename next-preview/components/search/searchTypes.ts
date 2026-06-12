@@ -280,9 +280,23 @@ function dateKey(d: IDocument): string {
   return (d.ngayBanHanh || (d.namBanHanh ? `${d.namBanHanh}-00-00` : '') || ext.modified || ext.created || '').toString();
 }
 
-export function sortDocuments(docs: IDocument[], sort: SortKey): IDocument[] {
-  if (sort === 'relevance') return docs;
+export function sortDocuments(
+  docs: IDocument[],
+  sort: SortKey,
+  scoreOf?: (d: IDocument) => number
+): IDocument[] {
   const arr = [...docs];
+  if (sort === 'relevance') {
+    if (!scoreOf) return docs;
+    // relevance desc → NgayBanHanh desc → id (ổn định). Văn bản kém liên quan KHÔNG lên trước.
+    arr.sort(
+      (a, b) =>
+        scoreOf(b) - scoreOf(a) ||
+        dateKey(b).localeCompare(dateKey(a)) ||
+        (b.id ?? '').localeCompare(a.id ?? '')
+    );
+    return arr;
+  }
   switch (sort) {
     case 'ngayBanHanh_desc':
       arr.sort((a, b) => dateKey(b).localeCompare(dateKey(a)) || (b.id ?? '').localeCompare(a.id ?? ''));
@@ -318,22 +332,118 @@ export function normalizeVi(s: string): string {
     .trim();
 }
 
+// ── Relevance scoring (DMS V2) ───────────────────────────────────────────────
+// Ưu tiên field: TrichYeu > SoVanBan > ChuDeNghiepVu > LoaiTaiLieu/NhomTaiLieu/LoaiVanBanPhapLy
+// > Tags > DonViPhatHanh/DonViSoHuu (điểm thấp). CỐ Ý KHÔNG tính fileName/path/đơn vị soạn thảo/
+// người ký để match phụ không đẩy kết quả lên cao.
+interface ScoredField {
+  get: (d: IDocument) => string | undefined;
+  w: number;
+}
+const SCORE_FIELDS: ScoredField[] = [
+  { get: (d) => d.trichYeu, w: 10 },
+  { get: (d) => d.soVanBan, w: 6 },
+  { get: (d) => d.chuDeNghiepVu, w: 5 },
+  { get: (d) => d.loaiTaiLieu, w: 3 },
+  { get: (d) => d.nhomTaiLieu, w: 3 },
+  { get: (d) => d.loaiVanBanPhapLy ?? d.loaiVanBan, w: 3 },
+  { get: (d) => d.tags, w: 2 },
+  { get: (d) => d.donViPhatHanh, w: 1 },
+  { get: (d) => d.donViSoHuu, w: 1 },
+];
+
+/** Điểm tối thiểu để 1 văn bản được coi là "đủ liên quan" với keyword (lọc match yếu). */
+export const MIN_RELEVANCE = 4;
+
+/** Tách 1 chuỗi đã chuẩn hóa thành danh sách âm tiết/từ (ngắt theo ký tự không phải chữ-số). */
+function wordsOf(norm: string): string[] {
+  return norm.split(/[^a-z0-9]+/).filter(Boolean);
+}
+
+export interface ScoreResult {
+  score: number;
+  reasons: string[];
+  coverage: number;
+}
+
 /**
- * Token search: tách query theo khoảng trắng, MỖI token phải xuất hiện trong haystack
- * (không cần liền nhau). VD "quy xử" → match "quy tắc ứng xử". Bỏ dấu + không phân biệt hoa thường.
+ * Chấm điểm relevance 1 văn bản với keyword tiếng Việt.
+ *  - normalize: lowercase, bỏ dấu, trim, gộp khoảng trắng.
+ *  - PHRASE match (cụm liền nhau, vd "danh gia") = tín hiệu mạnh nhất, nhân trọng số field.
+ *  - TOKEN match theo NGUYÊN TỪ (âm tiết) — tránh substring khớp nhầm (vd "gia" KHÔNG khớp "giam").
+ *    Token ≥4 ký tự cho phép khớp tiền tố (chịu được biến thể nhẹ).
+ *  - Yêu cầu MỌI token khớp nguyên-từ ở ≥1 field; thiếu coverage → 0 (loại match 1 từ phổ thông).
  */
+export function scoreDocumentDetailed(d: IDocument, kw: string): ScoreResult {
+  const nq = normalizeVi(kw).replace(/\s+/g, ' ').trim();
+  if (!nq) {
+    return { score: 0, reasons: [], coverage: 0 };
+  }
+  const tokens = nq.split(' ').filter(Boolean);
+  const multi = tokens.length > 1;
+  let score = 0;
+  const reasons: string[] = [];
+  const covered = new Set<string>();
+
+  for (const f of SCORE_FIELDS) {
+    const fv = normalizeVi(f.get(d) ?? '').replace(/\s+/g, ' ').trim();
+    if (!fv) {
+      continue;
+    }
+    const words = wordsOf(fv);
+    const wordSet = new Set(words);
+
+    // 1) Phrase / nguyên-cụm.
+    if (multi && fv.includes(nq)) {
+      score += f.w * 10;
+      reasons.push(`phrase@${f.w}`);
+      if (fv === nq) {
+        score += f.w * 5;
+        reasons.push(`exact@${f.w}`);
+      }
+      tokens.forEach((t) => covered.add(t));
+    } else if (!multi && wordSet.has(nq)) {
+      score += f.w * 4;
+      reasons.push(`word@${f.w}`);
+      covered.add(nq);
+    }
+
+    // 2) Token nguyên-từ (cộng theo trọng số field).
+    let fieldHits = 0;
+    for (const t of tokens) {
+      if (wordSet.has(t)) {
+        score += f.w * 2;
+        covered.add(t);
+        fieldHits++;
+      } else if (t.length >= 4 && words.some((w) => w.startsWith(t))) {
+        score += f.w * 1;
+        covered.add(t);
+        fieldHits++;
+      }
+    }
+    // 3) Bonus: tất cả token cùng xuất hiện trong 1 field.
+    if (multi && fieldHits === tokens.length) {
+      score += f.w;
+      reasons.push(`allTokens@${f.w}`);
+    }
+  }
+
+  // Mọi token phải khớp nguyên-từ ở đâu đó → chặn match 1 từ phổ thông / substring nhầm.
+  if (covered.size < tokens.length) {
+    return { score: 0, reasons: ['incomplete-coverage'], coverage: covered.size };
+  }
+  return { score, reasons, coverage: covered.size };
+}
+
+/** Điểm relevance (số). 0 = không đủ liên quan. */
+export function scoreDocument(d: IDocument, kw: string): number {
+  return scoreDocumentDetailed(d, kw).score;
+}
+
+/** Filter: đủ liên quan khi đạt điểm tối thiểu. Keyword rỗng → luôn true. */
 export function matchesKeyword(d: IDocument, kw: string): boolean {
-  const tokens = normalizeVi(kw).split(/\s+/).filter(Boolean);
-  if (!tokens.length) {
+  if (!normalizeVi(kw).trim()) {
     return true;
   }
-  const hay = normalizeVi(
-    [
-      d.soVanBan, d.trichYeu, d.loaiVanBan, d.loaiVanBanPhapLy, d.loaiTaiLieu, d.nhomTaiLieu,
-      d.chuDeNghiepVu, d.donViPhatHanh, d.donViSoHuu, d.donViSoanThao, d.nguoiKy, d.tags, d.fileName,
-    ]
-      .filter(Boolean)
-      .join(' ')
-  );
-  return tokens.every((t) => hay.includes(t));
+  return scoreDocument(d, kw) >= MIN_RELEVANCE;
 }
