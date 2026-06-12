@@ -3,6 +3,7 @@
 import { IDocument, DocStatus } from '@dms/models/IDocument';
 import { isExpired } from '@dms/utils/standardization';
 import { daysUntil, formatDate } from '@dms/utils/format';
+import { sortDocumentsByIssuedDateThenNumber } from '@dms/utils/sortDocs';
 
 export const EXPIRING_WINDOW_DAYS = 30;
 
@@ -121,10 +122,12 @@ export interface RecentDoc {
   donVi: string;
 }
 
-// Top N văn bản mới nhất theo NgayBanHanh (giảm dần). Văn bản thiếu ngày xếp cuối.
+// Top N văn bản mới nhất — A4.1: ĐỒNG BỘ với Search mặc định:
+//  - Ẩn "Hết hiệu lực" (isExpired) trước khi sort (giống facet mặc định của Search).
+//  - Dùng CHUNG comparator sortDocumentsByIssuedDateThenNumber (ngày desc → SoVanBan desc → id),
+//    KHÔNG còn localeCompare(ngày) chỉ-theo-ngày (vốn không phân giải tie → lệch Search).
 export function recentDocuments(docs: IDocument[], limit = 10): RecentDoc[] {
-  return [...docs]
-    .sort((a, b) => (b.ngayBanHanh ?? '').localeCompare(a.ngayBanHanh ?? ''))
+  return sortDocumentsByIssuedDateThenNumber(docs.filter((d) => !isExpired(d)))
     .slice(0, limit)
     .map((d) => ({
       id: d.id,
