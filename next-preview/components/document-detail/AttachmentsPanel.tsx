@@ -13,6 +13,14 @@ interface AttachmentInfo {
   uploadedAt?: string;
 }
 
+// A6: trạng thái upload từng file (hiển thị tiến trình + thành công/thất bại).
+type UploadStatus = 'uploading' | 'done' | 'error';
+interface UploadItem {
+  name: string;
+  status: UploadStatus;
+  error?: string;
+}
+
 const ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg,.txt,.csv,.zip';
 
 function fmtSize(kb?: number): string {
@@ -45,6 +53,8 @@ export default function AttachmentsPanel({
   const [loading, setLoading] = React.useState(true);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [uploads, setUploads] = React.useState<UploadItem[]>([]); // A6: trạng thái upload từng file
+  const [drag, setDrag] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
 
   const qs = `?soVanBan=${encodeURIComponent(soVanBan)}`;
@@ -71,35 +81,64 @@ export default function AttachmentsPanel({
     void load();
   }, [load]);
 
-  const onPick = async (e: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) {
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    try {
-      const fd = new FormData();
-      fd.append('file', file);
-      fd.append('soVanBan', soVanBan);
-      const res = await fetch(`/api/documents/${encodeURIComponent(docId)}/attachments`, {
-        method: 'POST',
-        body: fd,
-        credentials: 'same-origin',
-      });
-      const j = await res.json();
-      if (!res.ok || !j.ok) {
-        setError(j?.error ?? `Thêm thất bại (HTTP ${res.status}).`);
+  // A6: upload NHIỀU file TUẦN TỰ (queue) — tránh đua tạo folder Attachments/<SoVanBan> (409).
+  // Cập nhật trạng thái từng file; cuối cùng refresh danh sách (không cần F5).
+  const uploadFiles = React.useCallback(
+    async (files: File[]): Promise<void> => {
+      if (!files.length) {
         return;
       }
-      await load();
-      onChanged('Đã thêm file đính kèm.');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Lỗi mạng khi tải lên.');
-    } finally {
+      setError(null);
+      setBusy(true);
+      setUploads(files.map((f) => ({ name: f.name, status: 'uploading' as UploadStatus })));
+      let okCount = 0;
+      for (let i = 0; i < files.length; i++) {
+        try {
+          const fd = new FormData();
+          fd.append('file', files[i]);
+          fd.append('soVanBan', soVanBan);
+          const res = await fetch(`/api/documents/${encodeURIComponent(docId)}/attachments`, {
+            method: 'POST',
+            body: fd,
+            credentials: 'same-origin',
+          });
+          const j = await res.json();
+          if (res.ok && j.ok) {
+            okCount++;
+            setUploads((prev) => prev.map((u, idx) => (idx === i ? { ...u, status: 'done' } : u)));
+          } else {
+            const msg = j?.error ?? `HTTP ${res.status}`;
+            setUploads((prev) => prev.map((u, idx) => (idx === i ? { ...u, status: 'error', error: msg } : u)));
+          }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : 'Lỗi mạng';
+          setUploads((prev) => prev.map((u, idx) => (idx === i ? { ...u, status: 'error', error: msg } : u)));
+        }
+      }
       setBusy(false);
+      await load();
+      onChanged(
+        okCount === files.length
+          ? `Đã thêm ${okCount} file đính kèm.`
+          : `Đã thêm ${okCount}/${files.length} file đính kèm — xem chi tiết lỗi bên dưới.`
+      );
+    },
+    [docId, soVanBan, load, onChanged]
+  );
+
+  const onPick = (e: React.ChangeEvent<HTMLInputElement>): void => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    void uploadFiles(files);
+  };
+
+  const onDrop = (e: React.DragEvent): void => {
+    e.preventDefault();
+    setDrag(false);
+    if (!canWrite || busy) {
+      return;
     }
+    void uploadFiles(Array.from(e.dataTransfer.files ?? []));
   };
 
   const remove = async (att: AttachmentInfo): Promise<void> => {
@@ -131,11 +170,39 @@ export default function AttachmentsPanel({
     <div>
       {canWrite && (
         <div style={{ marginBottom: 12 }}>
-          <input ref={inputRef} type="file" accept={ACCEPT} style={{ display: 'none' }} onChange={(e) => void onPick(e)} />
-          <button className="btn btn-primary" disabled={busy} onClick={() => inputRef.current?.click()}>
-            <Icon name="plus" size={16} />
-            <span style={{ marginLeft: 6 }}>{busy ? 'Đang xử lý…' : 'Thêm file đính kèm'}</span>
-          </button>
+          <input ref={inputRef} type="file" multiple accept={ACCEPT} style={{ display: 'none' }} onChange={onPick} />
+          <div
+            onDragOver={(e) => { e.preventDefault(); if (!busy) setDrag(true); }}
+            onDragLeave={() => setDrag(false)}
+            onDrop={onDrop}
+            style={{
+              border: `1.5px dashed ${drag ? 'var(--navy-400)' : 'var(--gray-300)'}`,
+              background: drag ? 'var(--navy-050)' : 'transparent',
+              borderRadius: 'var(--r-md)', padding: '12px', textAlign: 'center', transition: 'background .12s, border-color .12s',
+            }}
+          >
+            <button className="btn btn-primary" disabled={busy} onClick={() => inputRef.current?.click()}>
+              <Icon name="plus" size={16} />
+              <span style={{ marginLeft: 6 }}>{busy ? 'Đang tải lên…' : 'Thêm file đính kèm'}</span>
+            </button>
+            <div className="t-2xs mut" style={{ marginTop: 8 }}>Chọn nhiều file hoặc kéo-thả vào đây.</div>
+          </div>
+
+          {uploads.length > 0 && (
+            <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {uploads.map((u, i) => (
+                <div key={`${u.name}-${i}`} className="t-2xs" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ flexShrink: 0, width: 14, textAlign: 'center', color: u.status === 'done' ? 'var(--success-600, #16794c)' : u.status === 'error' ? 'var(--danger-600, #c0362c)' : 'var(--gray-500)' }}>
+                    {u.status === 'done' ? '✓' : u.status === 'error' ? '✕' : '…'}
+                  </span>
+                  <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={u.name}>{u.name}</span>
+                  <span style={{ flexShrink: 0, color: u.status === 'error' ? 'var(--danger-600, #c0362c)' : 'var(--gray-500)' }}>
+                    {u.status === 'uploading' ? 'đang tải…' : u.status === 'done' ? 'xong' : (u.error ?? 'lỗi')}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
