@@ -2,25 +2,31 @@
 
 import * as React from 'react';
 import Icon from '@/components/shell/Icon';
-import { SelectedFile } from './uploadTypes';
+import { SelectedFile, ATTACHMENT_ACCEPT } from './uploadTypes';
 
 const ACCEPT = '.pdf';
 const ACCEPT_EDITABLE = '.doc,.docx,.xls,.xlsx,.pptx';
 
 // Bước 1 — chọn PDF chính (bắt buộc) + bản mềm DOCX/XLSX (tùy chọn) — BUG#18 multi-file MVP.
+// A2: + nhiều File đính kèm (tùy chọn).
 export default function FileDropzone({
   file,
   onFile,
   editableFile,
   onEditableFile,
+  attachments = [],
+  onAttachments,
 }: {
   file: SelectedFile | null;
   onFile: (f: SelectedFile | null) => void;
   editableFile: SelectedFile | null;
   onEditableFile: (f: SelectedFile | null) => void;
+  attachments?: SelectedFile[];
+  onAttachments?: (f: SelectedFile[]) => void;
 }): React.ReactElement {
   const inputRef = React.useRef<HTMLInputElement>(null);
   const editRef = React.useRef<HTMLInputElement>(null);
+  const attRef = React.useRef<HTMLInputElement>(null);
   const [drag, setDrag] = React.useState(false);
 
   const toSel = (f: File): SelectedFile => ({
@@ -34,6 +40,14 @@ export default function FileDropzone({
   };
   const pickEditable = (f: File | undefined): void => {
     if (f) onEditableFile(toSel(f));
+  };
+  const addAttachments = (files: FileList | null): void => {
+    if (!onAttachments || !files || !files.length) return;
+    onAttachments([...attachments, ...Array.from(files).map(toSel)]);
+  };
+  const removeAttachment = (idx: number): void => {
+    if (!onAttachments) return;
+    onAttachments(attachments.filter((_, i) => i !== idx));
   };
 
   return (
@@ -97,6 +111,27 @@ export default function FileDropzone({
         >
           <Icon name="plus" size={16} /> Thêm bản mềm (.docx/.xlsx — tùy chọn)
         </button>
+      )}
+
+      {/* A2: File đính kèm (tùy chọn, nhiều file) */}
+      {onAttachments && (
+        <div style={{ marginTop: 18 }}>
+          <div className="t-sm" style={{ fontWeight: 600, marginBottom: 8 }}>File đính kèm (tùy chọn)</div>
+          <input ref={attRef} type="file" multiple accept={ATTACHMENT_ACCEPT} style={{ display: 'none' }} onChange={(e) => { addAttachments(e.target.files); e.target.value = ''; }} />
+          {attachments.map((a, i) => (
+            <div className="filecard" style={{ marginBottom: 8 }} key={`${a.name}-${i}`}>
+              <div className="ficon doc">{(a.ext || 'FILE').toUpperCase().slice(0, 4)}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="t-sm" style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={a.name}>{a.name}</div>
+                <div className="t-2xs mut">{a.sizeKB.toLocaleString('vi-VN')} KB · đính kèm</div>
+              </div>
+              <button className="btn btn-ghost btn-sm" onClick={() => removeAttachment(i)}>Bỏ</button>
+            </div>
+          ))}
+          <button type="button" className="btn btn-ghost" style={{ borderStyle: 'dashed' }} onClick={() => attRef.current?.click()}>
+            <Icon name="plus" size={16} /> Thêm file đính kèm (pdf/doc/xls/ảnh/zip)
+          </button>
+        </div>
       )}
     </>
   );

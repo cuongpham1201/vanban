@@ -63,6 +63,8 @@
 .dd-root .relrow, .dd-root .attrow { display: flex; align-items: center; gap: 11px; padding: 11px; border: 1px solid var(--gray-200); border-radius: var(--r-md); margin-bottom: 9px; text-decoration: none; }
 .dd-root .relrow .ficon, .dd-root .attrow .ficon { width: 28px; height: 32px; border-radius: var(--r-xs); display: grid; place-items: center; font-size: 7px; font-weight: 800; background: var(--navy-050); color: var(--navy-600); flex-shrink: 0; }
 .dd-root .relrow .num, .dd-root .attrow .nm { font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 600; color: var(--navy-600); }
+/* A1: icon trong row (không nằm trong .btn) không được phình to + không co cột tên file. */
+.dd-root .attrow > svg, .dd-root .relrow > svg { width: 18px; height: 18px; flex-shrink: 0; }
 
 .dd-root .tl { position: relative; padding-left: 26px; }
 .dd-root .tl::before { content: ''; position: absolute; left: 8px; top: 4px; bottom: 4px; width: 2px; background: var(--gray-200); }

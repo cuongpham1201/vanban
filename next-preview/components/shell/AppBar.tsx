@@ -37,7 +37,20 @@ export default function AppBar({ onMenu }: { onMenu?: () => void } = {}): React.
       <button type="button" className="appbar-menu" onClick={onMenu} title="Menu" aria-label="Mở menu">
         <Icon name="list" />
       </button>
-      <div className="logo">
+      <div
+        className="logo"
+        role="button"
+        tabIndex={0}
+        title="Về Dashboard"
+        style={{ cursor: 'pointer' }}
+        onClick={() => router.push('/dashboard')}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            router.push('/dashboard');
+          }
+        }}
+      >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img className="logo-img" src="/logo-biahalong-white.png" alt="Bia Hạ Long" />
         <span>Quản lý văn bản</span>

@@ -82,6 +82,9 @@ export interface SelectedFile {
   raw?: File;
 }
 
+// A2: định dạng cho phép với File đính kèm (khớp allowlist của POST /api/documents/[id]/attachments).
+export const ATTACHMENT_ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.zip';
+
 /** Cảnh báo UI (không chặn cứng) — thiếu file hoặc field bắt buộc. */
 export function computeWarnings(form: UploadForm, file: SelectedFile | null): string[] {
   const w: string[] = [];

@@ -5,7 +5,19 @@ import { UploadForm, SelectedFile, REVIEW_KEYS, FIELD_LABEL, computeWarnings } f
 import { SearchDoc } from '@/components/replace/replaceTypes';
 
 // Bước 3 — review summary + cảnh báo. KHÔNG gọi API.
-export default function ReviewStep({ form, file, replaceTarget }: { form: UploadForm; file: SelectedFile | null; replaceTarget?: SearchDoc | null }): React.ReactElement {
+export default function ReviewStep({
+  form,
+  file,
+  editableFile,
+  attachments = [],
+  replaceTarget,
+}: {
+  form: UploadForm;
+  file: SelectedFile | null;
+  editableFile?: SelectedFile | null;
+  attachments?: SelectedFile[];
+  replaceTarget?: SearchDoc | null;
+}): React.ReactElement {
   const warnings = computeWarnings(form, file);
   return (
     <>
@@ -19,13 +31,21 @@ export default function ReviewStep({ form, file, replaceTarget }: { form: Upload
             <span className="v">{form[k] || '—'}</span>
           </div>
         ))}
-        <div className="rev">
-          <span className="k">File chính</span>
+        <div className="rev full">
+          <span className="k">1. PDF chính</span>
           <span className="v">{file ? `${file.name} · ${file.sizeKB.toLocaleString('vi-VN')} KB` : '— chưa chọn'}</span>
         </div>
-        <div className="rev">
-          <span className="k">Có bản mềm</span>
-          <span className="v">{form.hasEditableSource || '—'}</span>
+        <div className="rev full">
+          <span className="k">2. Bản mềm</span>
+          <span className="v">{editableFile ? `${editableFile.name} · ${editableFile.sizeKB.toLocaleString('vi-VN')} KB` : (form.hasEditableSource && form.hasEditableSource !== 'Không' ? form.hasEditableSource : '— không có')}</span>
+        </div>
+        <div className="rev full">
+          <span className="k">3. File đính kèm{attachments.length ? ` (${attachments.length})` : ''}</span>
+          <span className="v">
+            {attachments.length
+              ? attachments.map((a) => `${a.name} · ${a.sizeKB.toLocaleString('vi-VN')} KB`).join('; ')
+              : '— không có'}
+          </span>
         </div>
         {replaceTarget && (
           <div className="rev full">

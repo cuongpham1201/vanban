@@ -62,10 +62,16 @@ export default function SoftCopyPanel({
         <a className="attrow" href={editableSourceUrl} target="_blank" rel="noreferrer">
           <div className="ficon">{ext}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="t-sm" style={{ fontWeight: 600, wordBreak: 'break-word' }}>{editableSourceName || 'Bản mềm chỉnh sửa'}</div>
+            <div
+              className="t-sm"
+              style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+              title={editableSourceName || 'Bản mềm chỉnh sửa'}
+            >
+              {editableSourceName || 'Bản mềm chỉnh sửa'}
+            </div>
             <div className="t-2xs mut">File nguồn chỉnh sửa · bấm để tải xuống</div>
           </div>
-          <Icon name="download" />
+          <Icon name="download" size={18} />
         </a>
       ) : (
         <div className="dd-empty">Chưa có bản mềm cho văn bản này.</div>

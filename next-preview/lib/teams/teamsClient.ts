@@ -67,6 +67,27 @@ export async function getTeamsSsoToken(): Promise<string | undefined> {
   }
 }
 
+/**
+ * A5 — Đọc deep-link target (subEntityId) từ Teams launch context.
+ * Khi notification mở app qua deep link, Teams cấp subEntityId = "/documents/{id}?inTeams=1"
+ * (legacy subEntityId → v2 context.page.subPageId). Trả path tương đối AN TOÀN (bắt đầu "/"),
+ * undefined nếu không có / không trong Teams / lỗi.
+ */
+export async function getTeamsDeepLinkTarget(): Promise<string | undefined> {
+  if (!(await initTeams())) return undefined;
+  const sdk = await loadSdk();
+  if (!sdk) return undefined;
+  try {
+    const ctx = await sdk.app.getContext();
+    const sub = ctx?.page?.subPageId;
+    if (typeof sub === 'string' && sub.startsWith('/')) return sub;
+    return undefined;
+  } catch (err) {
+    console.warn('[Teams] getContext failed:', err instanceof Error ? err.message : String(err));
+    return undefined;
+  }
+}
+
 /** Mở URL ra trình duyệt ngoài (thoát iframe Teams — tránh chặn cookie/redirect). */
 export async function openExternal(url: string): Promise<void> {
   const sdk = await loadSdk();

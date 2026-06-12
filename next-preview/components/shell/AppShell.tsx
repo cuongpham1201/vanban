@@ -4,6 +4,7 @@ import * as React from 'react';
 import AppBar from './AppBar';
 import SideNav from './SideNav';
 import GlobalShortcuts from './GlobalShortcuts';
+import TeamsDeepLinkRouter from '@/components/auth/TeamsDeepLinkRouter';
 
 const PIN_KEY = 'bhl.sidebar.pinned';
 
@@ -39,6 +40,9 @@ export default function AppShell({ children }: { children: React.ReactNode }): R
   return (
     <div className={`dms-shell${pinned ? ' pinned' : ''}`} style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       <GlobalShortcuts />
+      <React.Suspense fallback={null}>
+        <TeamsDeepLinkRouter />
+      </React.Suspense>
       <React.Suspense fallback={<header className="appbar" />}>
         <AppBar onMenu={() => setMobileOpen((v) => !v)} />
       </React.Suspense>

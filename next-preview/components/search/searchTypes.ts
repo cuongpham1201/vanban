@@ -3,6 +3,7 @@
 import { IDocument, DocStatus, SecurityLevel } from '@dms/models/IDocument';
 import { formatDate, daysUntil } from '@dms/utils/format';
 import { isExpired } from '@dms/utils/standardization';
+import { sortDocumentsByIssuedDateThenNumber } from '@dms/utils/sortDocs';
 
 export interface ConfInfo {
   pct: number;
@@ -299,8 +300,8 @@ export function sortDocuments(
   }
   switch (sort) {
     case 'ngayBanHanh_desc':
-      arr.sort((a, b) => dateKey(b).localeCompare(dateKey(a)) || (b.id ?? '').localeCompare(a.id ?? ''));
-      break;
+      // A4: dùng helper chung để đồng bộ thứ tự với Dashboard (ngày desc → số VB desc → id).
+      return sortDocumentsByIssuedDateThenNumber(arr);
     case 'ngayBanHanh_asc':
       arr.sort((a, b) => dateKey(a).localeCompare(dateKey(b)) || (a.id ?? '').localeCompare(b.id ?? ''));
       break;

@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import UploadStepper from './UploadStepper';
 import FileDropzone from './FileDropzone';
 import MetadataForm from './MetadataForm';
@@ -20,6 +21,7 @@ export default function UploadWizardPage(): React.ReactElement {
   const [step, setStep] = React.useState(0);
   const [file, setFile] = React.useState<SelectedFile | null>(null);
   const [editableFile, setEditableFile] = React.useState<SelectedFile | null>(null); // BUG#18 bản mềm
+  const [attachments, setAttachments] = React.useState<SelectedFile[]>([]); // A2 file đính kèm
   const [form, setForm] = React.useState<UploadForm>(EMPTY_FORM);
 
   const [canWrite, setCanWrite] = React.useState(false);
@@ -72,6 +74,7 @@ export default function UploadWizardPage(): React.ReactElement {
     setForm(EMPTY_FORM);
     setFile(null);
     setEditableFile(null);
+    setAttachments([]);
     setStep(0);
     setPublishError(null);
     setDupMatches(null);
@@ -79,6 +82,40 @@ export default function UploadWizardPage(): React.ReactElement {
     setReplaceTarget(null);
     setReplacedNum(null);
     setIdemKey(typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
+  };
+
+  // A2 — Upload từng file đính kèm vào VB vừa tạo. Trả chuỗi cảnh báo nếu có lỗi ('' nếu OK/không có file).
+  const uploadAttachments = async (listItemId: string): Promise<string> => {
+    if (!attachments.length || !/^\d+$/.test(listItemId)) {
+      return '';
+    }
+    let okCount = 0;
+    const fails: string[] = [];
+    for (const a of attachments) {
+      if (!a.raw) {
+        continue;
+      }
+      try {
+        const afd = new FormData();
+        afd.append('file', a.raw);
+        afd.append('soVanBan', form.soVanBan);
+        const ar = await fetch(`/api/documents/${encodeURIComponent(listItemId)}/attachments`, {
+          method: 'POST', body: afd, credentials: 'same-origin',
+        });
+        const aj = await ar.json();
+        if (ar.ok && aj.ok) {
+          okCount++;
+        } else {
+          fails.push(`${a.name}: ${aj?.error ?? `HTTP ${ar.status}`}`);
+        }
+      } catch (e) {
+        fails.push(`${a.name}: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+    if (fails.length) {
+      return `Đã tải ${okCount}/${attachments.length} file đính kèm. Lỗi: ${fails.join(' · ')}`;
+    }
+    return '';
   };
 
   // Gửi upload thật. override=true → bỏ qua cảnh báo trùng SoVanBan.
@@ -105,6 +142,12 @@ export default function UploadWizardPage(): React.ReactElement {
       const res = await fetch('/api/documents/upload', { method: 'POST', body: fd, credentials: 'same-origin' });
       const j = await res.json();
       if (res.status === 201 && j.ok) {
+        // A2 — Upload file đính kèm SAU khi VB đã tạo (reuse POST /api/documents/[id]/attachments →
+        // lưu Attachments/<SoVanBan>). Best-effort: lỗi đính kèm chỉ cảnh báo, KHÔNG chặn PDF/bản mềm.
+        const attachWarn = await uploadAttachments(String(j.listItemId ?? ''));
+        const mergeWarn = (base?: string): string | undefined =>
+          [base, attachWarn].filter(Boolean).join(' · ') || undefined;
+
         // #35 — Nếu đã chọn văn bản thay thế (và không Hết hiệu lực): gọi Replace với newDocumentId.
         if (replaceEligible && replaceTarget && j.listItemId && /^\d+$/.test(String(j.listItemId))) {
           try {
@@ -116,17 +159,17 @@ export default function UploadWizardPage(): React.ReactElement {
             if (rep.ok && rj.ok) {
               setReplacedNum(replaceTarget.num);
             } else {
-              setResult({ ...(j as PublishResult), warning: `Đã tải lên nhưng ghi thay thế thất bại: ${rj?.error ?? `HTTP ${rep.status}`}.` });
+              setResult({ ...(j as PublishResult), warning: mergeWarn(`Đã tải lên nhưng ghi thay thế thất bại: ${rj?.error ?? `HTTP ${rep.status}`}.`) });
               go(3);
               return;
             }
           } catch (e) {
-            setResult({ ...(j as PublishResult), warning: `Đã tải lên nhưng lỗi mạng khi ghi thay thế: ${e instanceof Error ? e.message : String(e)}.` });
+            setResult({ ...(j as PublishResult), warning: mergeWarn(`Đã tải lên nhưng lỗi mạng khi ghi thay thế: ${e instanceof Error ? e.message : String(e)}.`) });
             go(3);
             return;
           }
         }
-        setResult(j as PublishResult);
+        setResult({ ...(j as PublishResult), warning: mergeWarn((j as PublishResult).warning) });
         go(3);
         return;
       }
@@ -163,6 +206,11 @@ export default function UploadWizardPage(): React.ReactElement {
   return (
     <div className="uw-root">
       <div className="uw-wrap">
+        <nav className="t-sm mut" style={{ marginBottom: 10 }} aria-label="breadcrumb">
+          <Link href="/dashboard" style={{ color: 'var(--navy-600)', textDecoration: 'none', fontWeight: 600 }}>← Dashboard</Link>
+          <span style={{ margin: '0 8px', color: 'var(--gray-300)' }}>/</span>
+          <span>Tải lên văn bản mới</span>
+        </nav>
         <h1 className="t-h1" style={{ margin: '0 0 4px' }}>Tải lên văn bản mới</h1>
         <p className="t-sm mut" style={{ margin: '0 0 28px' }}>
           {canWrite
@@ -175,7 +223,7 @@ export default function UploadWizardPage(): React.ReactElement {
         <div className="card card-pad">
           {step === 0 && (
             <div className="panel">
-              <FileDropzone file={file} onFile={setFile} editableFile={editableFile} onEditableFile={setEditableFile} />
+              <FileDropzone file={file} onFile={setFile} editableFile={editableFile} onEditableFile={setEditableFile} attachments={attachments} onAttachments={setAttachments} />
             </div>
           )}
           {step === 1 && (
@@ -186,7 +234,7 @@ export default function UploadWizardPage(): React.ReactElement {
           )}
           {step === 2 && (
             <div className="panel">
-              <ReviewStep form={form} file={file} replaceTarget={replaceEligible ? replaceTarget : null} />
+              <ReviewStep form={form} file={file} editableFile={editableFile} attachments={attachments} replaceTarget={replaceEligible ? replaceTarget : null} />
               {publishError && (
                 <div className="uw-publish-error" style={{ marginTop: 14, padding: '10px 14px', background: 'var(--danger-100)', color: 'var(--danger-700)', borderRadius: 'var(--r-md)', fontSize: 'var(--fs-sm)' }}>
                   {publishError}

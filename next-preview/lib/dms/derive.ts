@@ -15,6 +15,7 @@ import {
   isRecentlyIssued,
   needsStandardization,
 } from '@dms/utils/standardization';
+import { sortDocumentsByIssuedDateThenNumber } from '@dms/utils/sortDocs';
 
 const UNIT_COLORS = [
   '#4F46E5', '#0EA5E9', '#10B981', '#F59E0B', '#EF4444',
@@ -63,10 +64,10 @@ export function computeKpis(all: IDocument[]): IKpiStat[] {
 }
 
 export function computeRecent(all: IDocument[]): IDocument[] {
-  return all
-    .filter((d) => d.trangThai === DocStatus.Active && isNotExpired(d))
-    .sort((a, b) => b.ngayBanHanh.localeCompare(a.ngayBanHanh))
-    .slice(0, 10);
+  // A4: dùng helper chung để đồng bộ thứ tự với /search (ngày desc → số VB desc → id).
+  return sortDocumentsByIssuedDateThenNumber(
+    all.filter((d) => d.trangThai === DocStatus.Active && isNotExpired(d))
+  ).slice(0, 10);
 }
 
 export function computeExpiring(all: IDocument[]): IDocument[] {
