@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getGraphAccessToken, AuthError } from '@/lib/auth/token';
 import { graphFetch, GraphError } from '@/lib/graph/client';
 import { resolveSiteId, resolveListId, LibraryResolveError } from '@/lib/sharepoint/resolve';
+import { graphCallWithRetry, fetchPdfWithRetry, PdfProxyError, isNetworkError } from '@/lib/dms/pdfProxy';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -36,10 +37,10 @@ export async function GET(request: Request): Promise<Response> {
     const site = await resolveSiteId(accessToken);
     const list = await resolveListId(accessToken);
 
-    // Lấy metadata driveItem (gồm name + @microsoft.graph.downloadUrl, không $select để giữ downloadUrl).
-    const item = await graphFetch<DriveItemMeta>(
-      `/sites/${site.id}/lists/${list.id}/items/${id}/driveItem`,
-      { accessToken }
+    // A7: driveItem qua Graph — retry lỗi tạm thời (network/429/5xx), KHÔNG retry 404/415…
+    const item = await graphCallWithRetry<DriveItemMeta>(
+      () => graphFetch<DriveItemMeta>(`/sites/${site.id}/lists/${list.id}/items/${id}/driveItem`, { accessToken }),
+      { documentId: id, phase: 'driveItem' }
     );
 
     const name = item.name ?? '';
@@ -53,8 +54,9 @@ export async function GET(request: Request): Promise<Response> {
       return jsonErr(502, 'Không lấy được link tải nội dung PDF từ Microsoft Graph.');
     }
 
-    // downloadUrl là pre-authenticated → fetch KHÔNG kèm Authorization (token không rời server).
-    const upstream = await fetch(downloadUrl, { cache: 'no-store' });
+    // A7: stream nội dung — timeout 15s + retry lỗi tạm thời. downloadUrl pre-authenticated →
+    // fetch KHÔNG kèm Authorization (token không rời server).
+    const upstream = await fetchPdfWithRetry(downloadUrl, { documentId: id, phase: 'stream' });
     if (!upstream.ok || !upstream.body) {
       return jsonErr(502, `Tải nội dung PDF thất bại (HTTP ${upstream.status}).`);
     }
@@ -73,6 +75,9 @@ export async function GET(request: Request): Promise<Response> {
 
     return new Response(upstream.body, { status: 200, headers });
   } catch (err) {
+    if (err instanceof PdfProxyError) {
+      return jsonErr(err.httpStatus, err.userMessage);
+    }
     if (err instanceof AuthError) {
       return jsonErr(err.status, err.message);
     }
@@ -81,8 +86,14 @@ export async function GET(request: Request): Promise<Response> {
     }
     if (err instanceof GraphError) {
       // 404 = item không tồn tại / không có quyền.
-      const status = err.status === 404 ? 404 : err.status >= 400 && err.status < 600 ? err.status : 502;
+      if (err.status === 404) {
+        return jsonErr(404, 'Không tìm thấy file PDF trên SharePoint.');
+      }
+      const status = err.status >= 400 && err.status < 600 ? err.status : 502;
       return jsonErr(status, `Không lấy được file từ SharePoint (Graph ${err.status}).`);
+    }
+    if (isNetworkError(err)) {
+      return jsonErr(504, 'Lỗi mạng tạm thời khi tải PDF. Vui lòng thử lại.');
     }
     const message = err instanceof Error ? err.message : String(err);
     return jsonErr(500, message);
