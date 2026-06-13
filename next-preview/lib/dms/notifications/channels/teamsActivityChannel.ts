@@ -65,14 +65,26 @@ function bool(v: string | undefined, dflt = false): boolean {
 export interface TeamsActivityConfig {
   enabled: boolean;
   testRecipient: string;
+  /** M365 Group id — nguồn recipient send-all (env DMS_TEAMS_ACTIVITY_GROUP_ID). */
+  groupId: string;
+  /** Giới hạn số recipient (0 = không giới hạn). Dùng để test an toàn vài user trước. */
+  maxRecipients: number;
+  /** true → KHÔNG gọi Graph SEND thật (chỉ log). Mặc định = isDevelopment (dev luôn dry-run). */
+  dryRun: boolean;
   isDevelopment: boolean;
 }
 
 export function getTeamsActivityConfig(): TeamsActivityConfig {
+  const isDevelopment = process.env.NODE_ENV !== 'production';
+  const maxRaw = Number((process.env.DMS_TEAMS_ACTIVITY_MAX_RECIPIENTS ?? '').trim());
   return {
     enabled: bool(process.env.DMS_TEAMS_ACTIVITY_ENABLED, false),
     testRecipient: (process.env.DMS_TEAMS_ACTIVITY_TEST_RECIPIENT ?? '').trim().toLowerCase(),
-    isDevelopment: process.env.NODE_ENV !== 'production',
+    groupId: (process.env.DMS_TEAMS_ACTIVITY_GROUP_ID ?? '').trim(),
+    maxRecipients: Number.isFinite(maxRaw) && maxRaw > 0 ? Math.floor(maxRaw) : 0,
+    // Dev mặc định dry-run; prod mặc định gửi thật (trừ khi đặt DMS_TEAMS_ACTIVITY_DRY_RUN=true).
+    dryRun: bool(process.env.DMS_TEAMS_ACTIVITY_DRY_RUN, isDevelopment),
+    isDevelopment,
   };
 }
 
@@ -98,6 +110,54 @@ _g.__dmsTeamsActivitySent ??= new Set<string>();
 const SENT: Set<string> = _g.__dmsTeamsActivitySent;
 function sentKey(eventKey: string, recipient: string): string {
   return `teamsActivity|${eventKey}|${recipient}`;
+}
+
+// Throttle nhỏ giữa các lần gửi (tránh dồn Graph khi fan-out nhiều user). KHÔNG Promise.all.
+const SEND_THROTTLE_MS = 200;
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+/** Kết quả gửi 1 event tới NHIỀU recipient (fan-out từ group). */
+export interface TeamsActivityBatchResult {
+  status: 'disabled' | 'skipped' | 'done';
+  reason?: string;
+  totalMembers: number;   // user members thô từ group (trước dedup/slice)
+  resolvedUsers: number;  // sau dedup + lọc domain + slice maxRecipients
+  sent: number;
+  skipped: number;
+  failed: number;
+}
+
+/** 1 user member của group (đã có sẵn AAD object id → KHÔNG cần resolve lại). */
+interface GroupUser {
+  aadObjectId: string;
+  email: string;
+}
+
+/**
+ * Lấy USER members của 1 M365 group (cast microsoft.graph.user → bỏ group/device lồng nhau),
+ * có phân trang. Cần app permission GroupMember.Read.All (hoặc Group.Read.All) + User.Read.All.
+ */
+async function fetchGroupUserMembers(accessToken: string, groupId: string): Promise<GroupUser[]> {
+  const out: GroupUser[] = [];
+  let url: string | undefined =
+    `/groups/${encodeURIComponent(groupId)}/members/microsoft.graph.user?$select=id,userPrincipalName,mail&$top=999`;
+  let pages = 0;
+  while (url && pages < 20) {
+    const page: { value?: { id?: string; userPrincipalName?: string; mail?: string }[]; '@odata.nextLink'?: string } =
+      await graphFetch(url, { accessToken });
+    pages++;
+    for (const u of page.value ?? []) {
+      const aadObjectId = (u.id ?? '').trim();
+      const email = (u.mail ?? u.userPrincipalName ?? '').trim().toLowerCase();
+      if (aadObjectId) {
+        out.push({ aadObjectId, email });
+      }
+    }
+    url = page['@odata.nextLink'];
+  }
+  return out;
 }
 
 /** Resolve AAD object id từ email (cần User.Read.All app permission — app đã có). */
@@ -131,6 +191,8 @@ function skipReasonForStatus(statusCode: number | null): string {
 interface SendOneInput {
   accessToken: string;
   recipient: string;
+  /** Nếu đã biết AAD object id (vd từ group members) → KHÔNG resolve lại từ email. */
+  aadObjectId?: string | null;
   activityType: DmsTeamsActivityType;
   documentId: string;
   documentNumber?: string;
@@ -146,7 +208,7 @@ interface SendOneInput {
 async function sendOne(input: SendOneInput): Promise<TeamsActivityResult> {
   const { accessToken, recipient, activityType, documentId, documentNumber, documentTitle, logCtx } = input;
 
-  const aadObjectId = await resolveAadObjectId(accessToken, recipient);
+  const aadObjectId = input.aadObjectId ?? (await resolveAadObjectId(accessToken, recipient));
   if (!aadObjectId) {
     const reason = 'mapping-missing: không resolve được AAD object id (user không có trong tenant?)';
     // eslint-disable-next-line no-console
@@ -190,65 +252,127 @@ async function sendOne(input: SendOneInput): Promise<TeamsActivityResult> {
 }
 
 /**
- * Gửi Teams Activity Feed notification cho 1 DMS event. BEST-EFFORT (KHÔNG throw).
- * Phase 1 recipient: DMS_TEAMS_ACTIVITY_TEST_RECIPIENT (nếu set) → ngược lại actorEmail.
+ * Gửi Teams Activity Feed notification cho 1 DMS event — FAN-OUT từ M365 GROUP (tuần tự + throttle).
+ * Nguồn recipient theo ưu tiên:
+ *   1) DMS_TEAMS_ACTIVITY_TEST_RECIPIENT (nếu set) → CHỈ 1 user test (giữ hành vi cũ).
+ *   2) DMS_TEAMS_ACTIVITY_GROUP_ID (nếu test rỗng) → Graph /groups/{id}/members (chỉ user).
+ *   3) Fallback: actorEmail.
+ * Dedup theo AAD id (hoặc email), lọc domain công ty, slice DMS_TEAMS_ACTIVITY_MAX_RECIPIENTS.
+ * BEST-EFFORT (KHÔNG throw): lỗi/skip 1 user KHÔNG làm hỏng user khác hay bell/email/upload.
  */
-export async function sendTeamsActivityForEvent(ev: TeamsActivityEvent): Promise<TeamsActivityResult> {
+export async function sendTeamsActivityForEvent(ev: TeamsActivityEvent): Promise<TeamsActivityBatchResult> {
+  const empty = (status: TeamsActivityBatchResult['status'], reason?: string, totalMembers = 0): TeamsActivityBatchResult => ({
+    status, reason, totalMembers, resolvedUsers: 0, sent: 0, skipped: 0, failed: 0,
+  });
   try {
     const cfg = getTeamsActivityConfig();
-    if (!cfg.enabled) return { status: 'disabled', reason: 'DMS_TEAMS_ACTIVITY_ENABLED is false' };
+    if (!cfg.enabled) return empty('disabled', 'DMS_TEAMS_ACTIVITY_ENABLED is false');
 
     const activityType = activityTypeForEvent(ev.type);
-    if (!activityType) return { status: 'skipped', reason: `type ${ev.type} không có Teams activity` };
-
-    // Phase 1: test recipient override → actor. KHÔNG broadcast.
-    const recipient = cfg.testRecipient || (ev.actorEmail ?? '').toLowerCase().trim();
-    if (!recipient || !recipient.includes('@')) return { status: 'skipped', recipient, activityType, reason: 'no-recipient' };
-    if (!isAllowedEmail(recipient)) return { status: 'skipped', recipient, activityType, reason: `email ngoài domain ${ALLOWED_DOMAIN}` };
-
-    const key = sentKey(ev.eventKey, recipient);
-    if (SENT.has(key)) return { status: 'skipped', recipient, activityType, reason: 'duplicate (eventKey+recipient đã gửi)' };
+    if (!activityType) return empty('skipped', `type ${ev.type} không có Teams activity`);
 
     const logCtx = { eventType: ev.type, documentId: ev.documentId, eventKey: ev.eventKey };
 
-    if (cfg.isDevelopment) {
-      // eslint-disable-next-line no-console
-      console.log('[dms-teams-activity] skipped', JSON.stringify({ ...logCtx, recipient: maskEmail(recipient), activityType, reason: 'dev-mock (NODE_ENV != production → không gọi Graph thật)' }));
-      SENT.add(key);
-      return { status: 'mocked', recipient, activityType };
-    }
-    if (!isGraphReady()) return { status: 'skipped', recipient, activityType, reason: 'graph-not-ready (thiếu AZURE_AD_* env)' };
-
     // Nội dung từ Notification Template Manager (channel 'teamsActivity'). enabled=false → bỏ qua.
-    const ctx: NotificationTemplateContext = ev.ctx ?? {
-      id: ev.documentId,
-      soVanBan: ev.documentNumber,
-      trichYeu: ev.documentTitle,
-    };
+    const ctx: NotificationTemplateContext = ev.ctx ?? { id: ev.documentId, soVanBan: ev.documentNumber, trichYeu: ev.documentTitle };
     const content = await renderNotificationContent(ev.type, 'teamsActivity', ctx).catch(() => null);
-    if (content && !content.enabled) {
-      return { status: 'skipped', recipient, activityType, reason: 'disabled-by-template' };
+    if (content && !content.enabled) return empty('skipped', 'disabled-by-template');
+
+    // Cần token khi: lấy group members HOẶC gửi thật. (Dry-run + group vẫn cần token để LIỆT KÊ members.)
+    const usingGroup = !cfg.testRecipient && !!cfg.groupId;
+    const needToken = usingGroup || !cfg.dryRun;
+    let accessToken: string | null = null;
+    if (needToken) {
+      if (!isGraphReady()) return empty('skipped', 'graph-not-ready (thiếu AZURE_AD_* env)');
+      accessToken = await getAppOnlyGraphTokenReadOnly();
     }
 
-    const accessToken = await getAppOnlyGraphTokenReadOnly();
-    const result = await sendOne({
-      accessToken,
-      recipient,
-      activityType,
-      documentId: ev.documentId,
-      documentNumber: ev.documentNumber,
-      documentTitle: ev.documentTitle,
-      topicValue: content?.title,
-      documentInfo: content?.body,
-      previewText: content?.detail,
-      logCtx,
-    });
-    if (result.status === 'sent') SENT.add(key);
-    return result;
+    // Build candidate targets.
+    let candidates: GroupUser[] = [];
+    let totalMembers = 0;
+    if (cfg.testRecipient) {
+      candidates = [{ aadObjectId: '', email: cfg.testRecipient }]; // id rỗng → sendOne tự resolve từ email
+    } else if (usingGroup) {
+      const members = await fetchGroupUserMembers(accessToken as string, cfg.groupId);
+      totalMembers = members.length;
+      candidates = members;
+    } else {
+      const actor = (ev.actorEmail ?? '').toLowerCase().trim();
+      candidates = actor ? [{ aadObjectId: '', email: actor }] : [];
+    }
+
+    // Lọc domain công ty + dedup theo aadObjectId||email.
+    const seen = new Set<string>();
+    const filtered: GroupUser[] = [];
+    for (const c of candidates) {
+      const email = (c.email ?? '').toLowerCase().trim();
+      // Có email thì phải đúng domain (loại guest #EXT#); không email mà có id (hiếm) thì vẫn nhận.
+      if (email && (!email.includes('@') || !isAllowedEmail(email))) continue;
+      const dedupKey = c.aadObjectId || email;
+      if (!dedupKey || seen.has(dedupKey)) continue;
+      seen.add(dedupKey);
+      filtered.push({ aadObjectId: c.aadObjectId, email });
+    }
+
+    // Slice giới hạn an toàn.
+    const resolved = cfg.maxRecipients > 0 ? filtered.slice(0, cfg.maxRecipients) : filtered;
+    const resolvedUsers = resolved.length;
+    if (!resolvedUsers) {
+      const summary = empty('skipped', 'no-recipient', totalMembers);
+      // eslint-disable-next-line no-console
+      console.log('[dms-teams-activity] batch summary', JSON.stringify({ ...logCtx, ...summary, dryRun: cfg.dryRun }));
+      return summary;
+    }
+
+    let sent = 0;
+    let skipped = 0;
+    let failed = 0;
+    for (const t of resolved) {
+      const idKey = t.aadObjectId || t.email;
+      const key = sentKey(ev.eventKey, idKey);
+      if (SENT.has(key)) {
+        skipped++;
+        continue;
+      }
+      if (cfg.dryRun) {
+        // eslint-disable-next-line no-console
+        console.log('[dms-teams-activity] dry-run', JSON.stringify({ ...logCtx, recipient: maskEmail(t.email), aadObjectId: t.aadObjectId || null, activityType, reason: cfg.isDevelopment ? 'dev-mock' : 'DMS_TEAMS_ACTIVITY_DRY_RUN=true' }));
+        SENT.add(key);
+        skipped++;
+        continue;
+      }
+      const result = await sendOne({
+        accessToken: accessToken as string,
+        recipient: t.email,
+        aadObjectId: t.aadObjectId || undefined,
+        activityType,
+        documentId: ev.documentId,
+        documentNumber: ev.documentNumber,
+        documentTitle: ev.documentTitle,
+        topicValue: content?.title,
+        documentInfo: content?.body,
+        previewText: content?.detail,
+        logCtx,
+      });
+      if (result.status === 'sent') {
+        SENT.add(key);
+        sent++;
+      } else if (result.status === 'skipped') {
+        skipped++; // vd 404 chưa cài app / không resolve được AAD id → đã log warning trong sendOne
+      } else {
+        failed++;
+      }
+      await sleep(SEND_THROTTLE_MS);
+    }
+
+    const summary: TeamsActivityBatchResult = { status: 'done', totalMembers, resolvedUsers, sent, skipped, failed };
+    // eslint-disable-next-line no-console
+    console.log('[dms-teams-activity] batch summary', JSON.stringify({ ...logCtx, ...summary, dryRun: cfg.dryRun }));
+    return summary;
   } catch (e) {
     // eslint-disable-next-line no-console
     console.warn('[dms-teams-activity] send failed (teamsActivityChannel.sendTeamsActivityForEvent)', JSON.stringify({ eventKey: ev.eventKey, error: e instanceof Error ? e.message : String(e) }));
-    return { status: 'error', reason: e instanceof Error ? e.message : String(e) };
+    return empty('skipped', e instanceof Error ? e.message : String(e));
   }
 }
 
@@ -299,6 +423,9 @@ export function getTeamsActivityStatus(): {
   botAppId: string | undefined;
   tenantId: string | undefined;
   testRecipient: string | undefined;
+  dryRun: boolean;
+  groupId: string | undefined;
+  maxRecipients: number;
   mappingAvailable: boolean;
   requiredPermissions: string[];
 } {
@@ -312,8 +439,15 @@ export function getTeamsActivityStatus(): {
     botAppId,
     tenantId,
     testRecipient: cfg.testRecipient || undefined,
+    dryRun: cfg.dryRun,
+    groupId: cfg.groupId || undefined,
+    maxRecipients: cfg.maxRecipients,
     // mappingAvailable: có thể resolve AAD object id từ email (cần Graph User.Read.All + email domain).
     mappingAvailable: isGraphReady(),
-    requiredPermissions: ['TeamsActivity.Send (application, admin consent)', 'User.Read.All (application)'],
+    requiredPermissions: [
+      'TeamsActivity.Send (application, admin consent)',
+      'User.Read.All (application)',
+      'GroupMember.Read.All hoặc Group.Read.All (application) — đọc members của group',
+    ],
   };
 }
