@@ -34,6 +34,9 @@ export default function UploadWizardPage(): React.ReactElement {
   // #35 — Văn bản thay thế chọn ngay trong wizard.
   const [replaceTarget, setReplaceTarget] = React.useState<SearchDoc | null>(null);
   const [replacedNum, setReplacedNum] = React.useState<string | null>(null);
+  // AI gợi ý metadata (nền tảng) — CHỈ pre-fill, KHÔNG auto save/publish.
+  const [aiBusy, setAiBusy] = React.useState(false);
+  const [aiNote, setAiNote] = React.useState<string | null>(null);
   // Chỉ replace khi đã chọn + KHÔNG phải văn bản đã Hết hiệu lực (Phase 6).
   const replaceEligible = !!replaceTarget && replaceTarget.statusLabel !== EXPIRED_LABEL;
 
@@ -69,6 +72,50 @@ export default function UploadWizardPage(): React.ReactElement {
   }, []);
 
   const onChange = (k: keyof UploadForm, v: string): void => setForm((p) => ({ ...p, [k]: v }));
+
+  // AI gợi ý metadata: POST /api/ai/metadata-suggest → CHỈ pre-fill các trường ĐANG TRỐNG.
+  // KHÔNG ghi đè dữ liệu user, KHÔNG auto save/publish, KHÔNG upload lại file.
+  const runAiSuggest = async (): Promise<void> => {
+    setAiBusy(true);
+    setAiNote(null);
+    try {
+      const res = await fetch('/api/ai/metadata-suggest', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName: file?.name ?? '', title: form.trichYeu ?? '' }),
+      });
+      const j = await res.json();
+      if (!res.ok || !j.success || !j.suggestion) {
+        setAiNote(j?.error ?? `Gợi ý thất bại (HTTP ${res.status}).`);
+        return;
+      }
+      const s = j.suggestion as Record<string, unknown>;
+      const MAP: [string, keyof UploadForm][] = [
+        ['SoVanBan', 'soVanBan'], ['NamBanHanh', 'namBanHanh'], ['NgayBanHanh', 'ngayBanHanh'],
+        ['NhomTaiLieu', 'nhomTaiLieu'], ['LoaiVanBanPhapLy', 'loaiVanBanPhapLy'], ['LoaiTaiLieu', 'loaiTaiLieu'],
+        ['ChuDeNghiepVu', 'chuDeNghiepVu'], ['DonViPhatHanh', 'donViPhatHanh'], ['DonViSoHuu', 'donViSoHuu'],
+        ['TrangThai', 'trangThai'], ['MucDoBaoMat', 'mucDoBaoMat'], ['TrichYeu', 'trichYeu'],
+      ];
+      const next = { ...form };
+      let filled = 0;
+      for (const [sk, fk] of MAP) {
+        const val = s[sk];
+        if (val !== undefined && val !== null && String(val).trim() && !String(next[fk] ?? '').trim()) {
+          next[fk] = String(val);
+          filled++;
+        }
+      }
+      setForm(next);
+      const conf = typeof s.confidence === 'number' ? s.confidence : 0;
+      const reasons = Array.isArray(s.reasoning) ? (s.reasoning as string[]).join(' · ') : '';
+      setAiNote(`Độ tin cậy ${conf}/100 · đã điền ${filled} trường trống (bạn tự kiểm tra & sửa). ${reasons}`.trim());
+    } catch (e) {
+      setAiNote(e instanceof Error ? e.message : 'Lỗi mạng khi gọi gợi ý.');
+    } finally {
+      setAiBusy(false);
+    }
+  };
   const go = (n: number): void => setStep(Math.max(0, Math.min(3, n)));
   const reset = (): void => {
     setForm(EMPTY_FORM);
@@ -81,6 +128,7 @@ export default function UploadWizardPage(): React.ReactElement {
     setResult(null);
     setReplaceTarget(null);
     setReplacedNum(null);
+    setAiNote(null);
     setIdemKey(typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
   };
 
@@ -228,6 +276,19 @@ export default function UploadWizardPage(): React.ReactElement {
           )}
           {step === 1 && (
             <div className="panel">
+              <div className="row between" style={{ marginBottom: 12, gap: 12, flexWrap: 'wrap' }}>
+                <div className="t-2xs mut" style={{ flex: 1, minWidth: 0 }}>
+                  Gợi ý tự động điền các trường ĐANG TRỐNG từ tên file/tiêu đề. Bạn tự kiểm tra & sửa trước khi xuất bản.
+                </div>
+                <button type="button" className="btn btn-subtle" disabled={aiBusy} onClick={() => void runAiSuggest()}>
+                  {aiBusy ? 'Đang gợi ý…' : '✨ AI gợi ý metadata'}
+                </button>
+              </div>
+              {aiNote && (
+                <div className="t-2xs" style={{ marginBottom: 12, padding: '8px 12px', background: 'var(--navy-050)', border: '1px solid var(--navy-100)', borderRadius: 'var(--r-md)', color: 'var(--navy-700)' }}>
+                  {aiNote}
+                </div>
+              )}
               <MetadataForm form={form} onChange={onChange} dynamicChoices={dynChoices} />
               <ReplaceTargetPicker target={replaceTarget} onChange={setReplaceTarget} />
             </div>
