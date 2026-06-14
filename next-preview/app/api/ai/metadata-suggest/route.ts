@@ -6,6 +6,7 @@ import { suggestMetadata, getActiveProviderName } from '@/lib/ai/metadataSuggest
 import { MetadataSuggestion } from '@/lib/ai/types';
 import { SuggestionInput } from '@/lib/ai/provider';
 import { buildSuggestionAudit, suggestedFieldKeys } from '@/lib/ai/audit';
+import { extractDocxText } from '@/lib/ai/extract/docxExtractor';
 
 export const dynamic = 'force-dynamic';
 
@@ -99,20 +100,53 @@ export async function POST(req: Request): Promise<NextResponse<SuggestResponse>>
     );
   }
 
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ success: false, error: 'Body không phải JSON hợp lệ.' }, { status: 400 });
+  // Hỗ trợ 2 luồng: JSON (fileName/title/textContent) HOẶC multipart (file=docx + fileName + title).
+  const contentType = req.headers.get('content-type') ?? '';
+  let input: SuggestionInput;
+  let textChars = 0;
+
+  if (contentType.includes('multipart/form-data')) {
+    let form: FormData;
+    try {
+      form = await req.formData();
+    } catch {
+      return NextResponse.json({ success: false, error: 'Body không phải multipart hợp lệ.' }, { status: 400 });
+    }
+    const file = form.get('file');
+    const fileName = ((form.get('fileName') as string | null) ?? (file instanceof File ? file.name : '')).trim();
+    const title = ((form.get('title') as string | null) ?? '').trim();
+    let textContent = '';
+    if (file instanceof File && file.size > 0) {
+      // Trích text DOCX server-side (không vỡ route nếu lỗi/không phải .docx → text rỗng).
+      const ex = await extractDocxText(await file.arrayBuffer(), file.name);
+      textContent = ex.text;
+      textChars = ex.chars;
+    }
+    input = {
+      fileName: fileName.slice(0, 400) || undefined,
+      documentTitle: title.slice(0, 1000) || undefined,
+      textContent: textContent || undefined,
+    };
+    if (!input.fileName && !input.documentTitle && !input.textContent) {
+      return NextResponse.json({ success: false, error: 'Cần file/fileName/title.' }, { status: 422 });
+    }
+  } else {
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ success: false, error: 'Body không phải JSON hợp lệ.' }, { status: 400 });
+    }
+    const parsed = parseInput(body);
+    if (parsed.error || !parsed.value) {
+      return NextResponse.json({ success: false, error: parsed.error ?? 'Input không hợp lệ.' }, { status: 422 });
+    }
+    input = parsed.value;
+    textChars = input.textContent?.length ?? 0;
   }
 
-  const parsed = parseInput(body);
-  if (parsed.error || !parsed.value) {
-    return NextResponse.json({ success: false, error: parsed.error ?? 'Input không hợp lệ.' }, { status: 422 });
-  }
-
   try {
-    const suggestion = await suggestMetadata(parsed.value);
+    const suggestion = await suggestMetadata(input);
     // Audit STRUCTURE (chưa lưu DB/SharePoint) — log để quan sát + sẵn sàng cho list audit sau.
     const audit = buildSuggestionAudit({ requestId: randomUUID(), timestamp: new Date().toISOString(), suggestion });
     // eslint-disable-next-line no-console
@@ -122,6 +156,7 @@ export async function POST(req: Request): Promise<NextResponse<SuggestResponse>>
       provider: getActiveProviderName(),
       source: suggestion.source,
       confidence: suggestion.confidence,
+      textChars, // CHỈ số ký tự, KHÔNG log nội dung
       suggestedFields: suggestedFieldKeys(suggestion),
     }));
     return NextResponse.json({ success: true, suggestion });

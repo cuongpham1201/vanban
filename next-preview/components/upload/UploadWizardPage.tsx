@@ -79,12 +79,23 @@ export default function UploadWizardPage(): React.ReactElement {
     setAiBusy(true);
     setAiNote(null);
     try {
-      const res = await fetch('/api/ai/metadata-suggest', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileName: file?.name ?? '', title: form.trichYeu ?? '' }),
-      });
+      // Nếu có bản mềm .docx → gửi multipart để server trích text (AI-2A); nếu không → JSON như cũ.
+      const docx = editableFile?.raw && editableFile.name.toLowerCase().endsWith('.docx') ? editableFile.raw : null;
+      let res: Response;
+      if (docx) {
+        const fd = new FormData();
+        fd.append('file', docx);
+        fd.append('fileName', file?.name ?? '');
+        fd.append('title', form.trichYeu ?? '');
+        res = await fetch('/api/ai/metadata-suggest', { method: 'POST', credentials: 'same-origin', body: fd });
+      } else {
+        res = await fetch('/api/ai/metadata-suggest', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileName: file?.name ?? '', title: form.trichYeu ?? '' }),
+        });
+      }
       const j = await res.json();
       if (!res.ok || !j.success || !j.suggestion) {
         setAiNote(j?.error ?? `Gợi ý thất bại (HTTP ${res.status}).`);
