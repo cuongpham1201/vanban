@@ -32,6 +32,8 @@ const UNSUPPORTED_LOAITL = new Set(['Hợp đồng', 'Biểu mẫu']);
 
 // Ký tự cấm (SharePoint + Windows): / \ : * ? " < > | # %
 const FORBIDDEN = /[/\\:*?"<>|#%]/g;
+// Ký tự điều khiển (control chars).
+const CONTROL = /[\x00-\x1f\x7f]/g;
 
 /** Bỏ dấu tiếng Việt → ASCII (đ/Đ xử lý riêng vì không tách bằng NFD). */
 export function removeVietnameseDiacritics(s: string): string {
@@ -68,9 +70,43 @@ function dateToken(iso?: string): string {
 }
 
 /**
+ * P1 — Làm sạch NHẸ tên file GỐC để lưu SharePoint (giữ tên gốc tối đa):
+ *   - GIỮ Unicode/dấu tiếng Việt, khoảng trắng, dấu chấm, gạch ngang, gạch dưới, ngoặc.
+ *   - CHỈ bỏ ký tự cấm SP/URL (" * : < > ? / \ | # %) + ký tự điều khiển → thay bằng khoảng trắng.
+ *   - Gộp khoảng trắng thừa, bỏ chấm/space ở rìa, cắt ≤ MAX_FILENAME_LENGTH (GIỮ phần mở rộng).
+ *   - forceExt: ép phần mở rộng (vd 'pdf') — KHÔNG bỏ dấu, KHÔNG PascalCase, KHÔNG đổi mã văn bản.
+ */
+export function sanitizeOriginalFileName(rawName: string, forceExt?: string): FileNameResult {
+  const name = (rawName ?? '').trim();
+  if (!name) {
+    return { ok: false, error: 'Thiếu tên file.' };
+  }
+  const dot = name.lastIndexOf('.');
+  const rawStem = dot > 0 ? name.slice(0, dot) : name;
+  const rawExt = dot > 0 ? name.slice(dot + 1) : '';
+  const ext = ((forceExt ?? rawExt) || 'pdf').replace(/[^A-Za-z0-9]/g, '').toLowerCase() || 'pdf';
+
+  let stem = rawStem
+    .replace(CONTROL, ' ')
+    .replace(FORBIDDEN, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/^[.\s]+|[.\s]+$/g, '')
+    .trim();
+  if (!stem) {
+    stem = 'van-ban';
+  }
+  const room = MAX_FILENAME_LENGTH - (ext.length + 1);
+  if (room > 0 && stem.length > room) {
+    stem = stem.slice(0, room).trim();
+  }
+  return { ok: true, fileName: `${stem}.${ext}`, base: stem };
+}
+
+/**
  * Sinh tên file vật lý theo chuẩn BHL:
  *   <SoVanBan>-<TrichYeuKhôngDấu>[.dd-mm-yyyy].<ext>
  * (SoVanBan đã chứa Số.Năm.MãLoại-ĐơnVị). Loại cần field thiếu → lỗi.
+ * LƯU Ý (P1): KHÔNG còn dùng làm tên file VẬT LÝ khi upload; giữ cho canonical/debug.
  */
 export function buildDocumentFileName(input: FileNameInput): FileNameResult {
   const ext = (input.ext ?? 'pdf').replace(/^\./, '').toLowerCase();

@@ -10,7 +10,7 @@ import {
   PatchRolledBackError,
 } from '@/lib/dms/sharepointDmsService';
 import { normalizeMetadataPayload, validateUploadMetadata } from '@/lib/dms/writeHelpers';
-import { buildDocumentFileName } from '@/lib/dms/fileNaming';
+import { buildDocumentFileName, sanitizeOriginalFileName } from '@/lib/dms/fileNaming';
 import { invalidateDocumentsCache, getCachedDocuments } from '@/lib/dms/documentsCache';
 import { idemBegin, idemComplete, idemRelease } from '@/lib/dms/idempotency';
 import { notifyNewDocument } from '@/lib/dms/notifications/events';
@@ -87,8 +87,14 @@ export async function POST(req: Request): Promise<NextResponse> {
       return NextResponse.json({ ok: false, error: 'Thiếu trường bắt buộc.', validation: v }, { status: 422 });
     }
 
-    // 4b. Tên file (source of truth). Loại cần field thiếu → 422.
-    const naming = buildDocumentFileName({
+    // 4b. Tên file VẬT LÝ (P1) = TÊN GỐC đã sanitize NHẸ — giữ dấu tiếng Việt/khoảng trắng/mã VB,
+    //     chỉ bỏ ký tự cấm SP/URL. KHÔNG dùng buildDocumentFileName làm tên vật lý nữa.
+    const naming = sanitizeOriginalFileName(pdf.name, 'pdf');
+    if (!naming.ok || !naming.fileName || !naming.base) {
+      return NextResponse.json({ ok: false, error: naming.error ?? 'Tên file không hợp lệ.' }, { status: 422 });
+    }
+    // Canonical name (chỉ để log/debug — KHÔNG đặt làm tên file, best-effort, KHÔNG gate upload).
+    const canonical = buildDocumentFileName({
       soVanBan: metadata.SoVanBan,
       trichYeu: metadata.TrichYeu,
       ngayBanHanh: metadata.NgayBanHanh,
@@ -96,9 +102,12 @@ export async function POST(req: Request): Promise<NextResponse> {
       loaiTaiLieu: metadata.LoaiTaiLieu,
       ext: 'pdf',
     });
-    if (!naming.ok || !naming.fileName || !naming.base) {
-      return NextResponse.json({ ok: false, error: naming.error ?? 'Không sinh được tên file.' }, { status: 422 });
-    }
+    // eslint-disable-next-line no-console
+    console.log('[upload][filename]', JSON.stringify({
+      original: pdf.name,
+      stored: naming.fileName,
+      canonical: canonical.ok ? canonical.fileName : `(n/a: ${canonical.error ?? ''})`,
+    }));
 
     // Cấp lưu trữ (folder vật lý) TÁCH KHỎI DonViSoHuu (choice metadata).
     // Ưu tiên field 'capLuuTru'; fallback DonViSoHuu để tương thích ngược.
