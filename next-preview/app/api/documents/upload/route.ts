@@ -180,8 +180,10 @@ export async function POST(req: Request): Promise<NextResponse> {
       ...(result.warning ? { warning: result.warning } : {}),
     };
     idemComplete(email, idempotencyKey, body);
-    // Phase 1 web notification — recipient = uploader hiện tại. Không throw nếu lỗi.
-    await notifyNewDocument({
+    // FIX A: VĂN BẢN ĐÃ TẠO XONG → bắn notif FIRE-AND-FORGET (KHÔNG await) để response trả NGAY.
+    // Teams Activity fan-out toàn group (~150 user, tuần tự) chạy NỀN sau khi upload hoàn tất —
+    // tránh giữ request gây 504/"Failed to fetch"/trùng số VB. KHÔNG throw làm hỏng upload.
+    void notifyNewDocument({
       actorEmail: email,
       documentId: String(result.listItemId),
       documentNumber: metadata.SoVanBan,
@@ -189,6 +191,9 @@ export async function POST(req: Request): Promise<NextResponse> {
       donViSoanThao: metadata.DonViPhatHanh,
       ngayBanHanh: metadata.NgayBanHanh,
       trangThai: metadata.TrangThai,
+    }).catch((e) => {
+      // eslint-disable-next-line no-console
+      console.error('[upload][notify] failed', e instanceof Error ? e.message : String(e));
     });
     return NextResponse.json(body, { status: 201 });
   } catch (e) {

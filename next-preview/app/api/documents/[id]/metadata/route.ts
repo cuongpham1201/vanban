@@ -65,12 +65,15 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     // BUG#23: clear server cache (dùng chung bởi /api/documents, /api/documents/[id], /api/dashboard)
     // → Search/Detail/Dashboard re-fetch thấy metadata mới ngay, không stale tới 5 phút.
     invalidateDocumentsCache('edit');
-    // Phase 1 web notification — recipient = actor hiện tại. Không throw nếu lỗi.
-    await notifyDocumentUpdated({
+    // FIX A: cập nhật xong → notif FIRE-AND-FORGET (KHÔNG await) để response trả ngay; fan-out nền.
+    void notifyDocumentUpdated({
       actorEmail: (session?.user?.email as string | undefined) ?? 'unknown',
       documentId: id,
       documentNumber: typeof fields.SoVanBan === 'string' ? fields.SoVanBan : undefined,
       changedFields: Object.keys(updated),
+    }).catch((e) => {
+      // eslint-disable-next-line no-console
+      console.error('[metadata][notify] failed', e instanceof Error ? e.message : String(e));
     });
     return NextResponse.json({ ok: true, fields: updated, skipped, updatedAt });
   } catch (e) {

@@ -97,8 +97,8 @@ export async function POST(req: Request): Promise<NextResponse> {
     warnings.push('Reverse-link (VanBanLienQuan) không ghi — cột đang dùng cho danh sách file nguồn; cần field V3 riêng.');
 
     invalidateDocumentsCache('replace');
-    // Phase 1 web notification — recipient = actor hiện tại. Không throw nếu lỗi.
-    await notifyDocumentReplaced({
+    // FIX A: thay thế đã xong → notif FIRE-AND-FORGET (KHÔNG await) để response trả ngay; fan-out nền.
+    void notifyDocumentReplaced({
       actorEmail: actor,
       documentId: newId,
       documentNumber: newSo,
@@ -108,6 +108,9 @@ export async function POST(req: Request): Promise<NextResponse> {
       trangThai: String(newF.TrangThai ?? '').trim() || undefined,
       oldDocumentNumber: oldSo,
       newDocumentNumber: newSo,
+    }).catch((e) => {
+      // eslint-disable-next-line no-console
+      console.error('[replace][notify] failed', e instanceof Error ? e.message : String(e));
     });
     // eslint-disable-next-line no-console
     console.log('[dms-write][replace]', JSON.stringify({
