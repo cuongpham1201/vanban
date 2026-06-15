@@ -27,6 +27,18 @@ export default function FastPdfModal({
   const [inTeams, setInTeams] = React.useState(false);
   React.useEffect(() => setInTeams(isTeamsContext()), []);
 
+  // Mobile/PWA: iframe #view=FitH bị iOS Safari/WebView bỏ qua → PDF tràn khung modal. Dùng
+  // PdfCanvasViewer (fit-width) trên màn hẹp/cảm ứng; desktop giữ iframe native.
+  const [isMobile, setIsMobile] = React.useState(false);
+  React.useEffect(() => {
+    const mq = window.matchMedia('(max-width: 820px), (pointer: coarse)');
+    const update = (): void => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+  const useCanvas = inTeams || isMobile;
+
   // Đóng bằng phím Esc.
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -53,7 +65,7 @@ export default function FastPdfModal({
           </div>
         </div>
         <div className="fpm-body">
-          {isPdf && inTeams ? (
+          {isPdf && useCanvas ? (
             <PdfCanvasViewer fileUrl={fileBase} downloadUrl={doc.webUrl} fileName={doc.title} />
           ) : isPdf ? (
             <iframe className="fpm-frame" src={fileUrl} title={`PDF ${doc.num}`} />

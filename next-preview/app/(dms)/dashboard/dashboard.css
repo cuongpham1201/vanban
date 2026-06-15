@@ -35,7 +35,9 @@
 .db-quick-d { display: block; font-size: var(--fs-xs); color: var(--gray-500); margin-top: 2px; }
 
 /* Layout 2 cột */
-.db-root .grid2 { display: grid; grid-template-columns: 1.6fr 1fr; gap: 16px; align-items: start; }
+/* minmax(0,…) thay 1fr: track grid được phép co NHỎ HƠN nội dung → tiêu đề văn bản (nowrap+ellipsis)
+   không ép track rộng hơn viewport gây tràn ngang. (1fr ngầm định min-width:auto = min-content.) */
+.db-root .grid2 { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 .db-root .widget { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--r-lg); box-shadow: var(--sh-1); margin-bottom: 16px; }
 .db-root .whead { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; border-bottom: 1px solid var(--gray-150); }
 .db-root .whead h2 { margin: 0; font-size: var(--fs-h3); font-weight: 650; }
@@ -50,7 +52,7 @@
   font-size: 8px; font-weight: 800; background: var(--red-100); color: var(--red-600); }
 .db-root .li .ficon.doc { background: var(--navy-050); color: var(--navy-600); }
 .db-root .li .num { font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 600; color: var(--navy-600); }
-.db-root .li .ti { font-size: var(--fs-sm); font-weight: 500; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-root .li .ti { font-size: var(--fs-sm); font-weight: 500; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
 .db-root .li .sub { font-size: var(--fs-2xs); color: var(--gray-500); flex-shrink: 0; }
 
 /* Drill-down: KPI + bar clickable (#11) */
@@ -71,7 +73,7 @@
 @media (max-width: 1100px) {
   .db-kpis { grid-template-columns: repeat(2, 1fr); }
   .db-quick { grid-template-columns: 1fr; }
-  .db-root .grid2 { grid-template-columns: 1fr; }
+  .db-root .grid2 { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 640px) {
   .db-kpis { grid-template-columns: repeat(2, 1fr); }

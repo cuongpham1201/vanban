@@ -36,7 +36,7 @@ export default function DocumentPreview({ doc }: { doc: DetailDoc }): React.Reac
   const useCanvas = inTeams || isMobile;
 
   return (
-    <section className="viewer" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+    <section className="viewer" style={{ display: 'flex', flexDirection: 'column' }}>
       <div className="vtoolbar">
         <span>{isPdf ? 'Bản PDF' : 'Xem trước'}</span>
         <div style={{ flex: 1 }} />
