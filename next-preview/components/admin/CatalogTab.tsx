@@ -110,6 +110,9 @@ function CatalogPanel({ def, onChange }: { def: CatalogDef; onChange: (items: Ca
         <span className="t-xs mut">{def.items.length} mục · {total.toLocaleString('vi-VN')} văn bản</span>
       </div>
 
+      {/* Bảng có cột cố định (Mã/Trực thuộc/Số VB...) → cuộn ngang TRONG container trên mobile,
+          không đẩy tràn cả trang (body đã overflow-x:hidden). */}
+      <div style={{ overflowX: 'auto' }}>
       <table className="tbl">
         <thead>
           <tr>
@@ -170,6 +173,7 @@ function CatalogPanel({ def, onChange }: { def: CatalogDef; onChange: (items: Ca
           )}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

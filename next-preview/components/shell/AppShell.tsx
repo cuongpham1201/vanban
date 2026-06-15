@@ -38,7 +38,7 @@ export default function AppShell({ children }: { children: React.ReactNode }): R
   const open = mobileOpen || pinned;
 
   return (
-    <div className={`dms-shell${pinned ? ' pinned' : ''}`} style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+    <div className={`dms-shell${pinned ? ' pinned' : ''}`} style={{ display: 'flex', flexDirection: 'column', height: '100dvh' }}>
       <GlobalShortcuts />
       <React.Suspense fallback={null}>
         <TeamsDeepLinkRouter />

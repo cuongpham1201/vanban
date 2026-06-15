@@ -7,6 +7,11 @@ body {
   background: #f5f5f5;
   font-family: 'Segoe UI', 'Segoe UI Web (West European)', -apple-system, BlinkMacSystemFont,
     Roboto, 'Helvetica Neue', sans-serif;
+  /* Mobile-first hardening: chặn horizontal scroll TOÀN TRANG. Bảng/timeline cần cuộn ngang
+     đặt overflow-x:auto ở container con nên không bị ảnh hưởng. */
+  max-width: 100%;
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
 }
 
 #__next,

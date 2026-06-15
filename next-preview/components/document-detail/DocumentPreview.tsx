@@ -45,7 +45,7 @@ export default function DocumentPreview({ doc }: { doc: DetailDoc }): React.Reac
           className="pdfframe"
           src={pdfViewUrl}
           title={`PDF ${doc.num}`}
-          style={{ flex: 1, width: '100%', border: 0, minHeight: 520, background: 'var(--gray-100)' }}
+          style={{ flex: 1, width: '100%', border: 0, minHeight: 'clamp(320px, 60vh, 520px)', background: 'var(--gray-100)' }}
         />
       ) : (
         <div className="vscroll scrollbar">

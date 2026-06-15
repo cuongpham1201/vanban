@@ -116,12 +116,23 @@
 .tbl tr:hover td { background: var(--gray-050); }
 
 /* APP SHELL */
-.appbar { height: 52px; background: var(--navy-700); color: #fff; display: flex; align-items: center;
-  gap: var(--sp-4); padding: 0 var(--sp-5); position: relative; z-index: 20; }
+/* height + padding-top dùng env(safe-area-inset-top) để header không bị tai thỏ che (iPhone notch,
+   viewport-fit=cover). padding trái/phải dùng max() để né notch khi xoay ngang. Desktop/Android
+   không notch → env()=0 → giữ nguyên 52px + padding var(--sp-5) như cũ. */
+.appbar { height: calc(52px + env(safe-area-inset-top)); background: var(--navy-700); color: #fff;
+  display: flex; align-items: center; gap: var(--sp-4);
+  padding: env(safe-area-inset-top) max(var(--sp-5), env(safe-area-inset-right)) 0 max(var(--sp-5), env(safe-area-inset-left));
+  position: relative; z-index: 20; }
 .appbar .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .01em; min-width: 0; }
 /* Logo trắng "BIA HALONG" trên header xanh — giới hạn chiều cao, rộng tự động, không tràn. */
 .appbar .logo .logo-img { height: 34px; width: auto; max-width: 170px; object-fit: contain; display: block; flex: 0 0 auto; }
-@media (max-width: 767px) { .appbar .logo .logo-img { height: 28px; max-width: 120px; } }
+/* Tên app cạnh logo: KHÔNG xuống dòng (nếu wrap thành 2–3 dòng sẽ tràn khỏi header 52px và đè logo). */
+.appbar .logo span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Mobile: thu nhỏ logo + ẩn chữ "Quản lý văn bản" (logo đã đủ nhận diện thương hiệu, nhường chỗ icon). */
+@media (max-width: 767px) {
+  .appbar .logo .logo-img { height: 28px; max-width: 120px; }
+  .appbar .logo span { display: none; }
+}
 .appbar .spacer { flex: 1; }
 .appbar .gsearch { flex: 0 1 460px; display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,.12);
   border: 1px solid rgba(255,255,255,.18); border-radius: var(--r-sm); padding: 7px 12px; color: rgba(255,255,255,.85);
@@ -167,15 +178,19 @@
 .appbar-menu svg { width: 20px; height: 20px; }
 .sidenav-backdrop { display: none; }
 
-/* #36B: laptop 13"–14" (≤1536, gồm 1366/1440/1536) → sidebar ẩn mặc định, mở dạng overlay drawer
-   (không push content). Search Center là ưu tiên #1 → dùng TOÀN BỘ chiều ngang. */
-@media (max-width: 1536px) {
+/* Sidebar = drawer overlay CHỈ trên màn ≤1280 (tablet + laptop nhỏ). Laptop phổ biến 1366/1440
+   GIỮ sidebar cố định (1366−232=1134px vẫn dư cho Search 3 cột) → có nav thường trực, không bắt
+   user bấm ☰ mỗi lần điều hướng. (Trước đây 1536 bao trùm cả 1366/1440 → mất sidebar oan.) */
+@media (max-width: 1280px) {
   .appbar-menu { display: grid; }
   /* Sidebar thành drawer trượt từ trái, ẩn mặc định — content dùng TOÀN BỘ chiều ngang. */
-  .sidenav { position: fixed; top: 52px; bottom: 0; left: 0; z-index: 40; width: 264px;
+  /* top khớp chiều cao appbar (đã gồm safe-area-top). width dùng min() để không tràn trên máy hẹp;
+     padding-bottom né home-indicator. */
+  .sidenav { position: fixed; top: calc(52px + env(safe-area-inset-top)); bottom: 0; left: 0; z-index: 40;
+    width: min(264px, 84vw); padding-bottom: calc(var(--sp-4) + env(safe-area-inset-bottom));
     transform: translateX(-100%); transition: transform .2s ease; box-shadow: var(--sh-2, 4px 0 24px -8px rgba(0,0,0,.3)); }
   .sidenav.open { transform: translateX(0); }
-  .sidenav-backdrop { display: block; position: fixed; inset: 52px 0 0 0; background: rgba(15,31,77,.4); z-index: 39; }
+  .sidenav-backdrop { display: block; position: fixed; inset: calc(52px + env(safe-area-inset-top)) 0 0 0; background: rgba(15,31,77,.4); z-index: 39; }
 }
 /* Ẩn ô search ở appbar khi quá hẹp (<900) — laptop 900–1279 vẫn còn chỗ nên giữ. */
 @media (max-width: 899px) {

@@ -157,6 +157,7 @@ export default function FilterManagerTab(): React.ReactElement {
             </span>
           )}
         </div>
+        <div style={{ overflowX: 'auto' }}>
         <table className="tbl">
           <thead>
             <tr>
@@ -209,6 +210,7 @@ export default function FilterManagerTab(): React.ReactElement {
             ))}
           </tbody>
         </table>
+        </div>
 
         {/* Preview thứ tự — đúng những gì Search Center sẽ render */}
         <div className="adm-preview">

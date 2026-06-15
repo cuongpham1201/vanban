@@ -434,8 +434,8 @@ export default function SearchCenterPage(): React.ReactElement {
         <div className="searchrow-top">
           <SearchBar value={query} onChange={setQuery} onClear={() => setQuery('')} />
           {/* BUG#29: mobile chỉ còn Search + Sort + nút Bộ lọc; chips/facets vào drawer. */}
-          <button type="button" className="sc-filter-btn" onClick={() => setFilterOpen(true)}>
-            <Icon name="filter" /> Bộ lọc{chips.length ? ` (${chips.length})` : ''}
+          <button type="button" className="sc-filter-btn" onClick={() => setFilterOpen(true)} aria-label="Bộ lọc">
+            <Icon name="filter" /> <span className="sc-filter-label">Bộ lọc{chips.length ? ` (${chips.length})` : ''}</span>
           </button>
         </div>
         <ActiveChips

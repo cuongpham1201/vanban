@@ -19,7 +19,9 @@
 .bigsearch { display: flex; align-items: center; gap: 10px; max-width: 760px; border: 1px solid var(--gray-300);
   border-radius: var(--r-md); padding: 8px 13px; background: var(--white); box-shadow: var(--sh-1); }
 .bigsearch svg { width: 18px; height: 18px; color: var(--gray-500); }
-.bigsearch input { flex: 1; border: 0; outline: none; font: inherit; font-size: 14px; color: var(--ink); background: transparent; }
+/* min-width:0 → input CO LẠI được khi hẹp, nhường chỗ cho nút "Bộ lọc" (nếu không, input giữ
+   kích thước nội tại ~mặc định khiến .bigsearch không co → nút lọc tràn/khuyết ở mobile). */
+.bigsearch input { flex: 1; min-width: 0; border: 0; outline: none; font: inherit; font-size: 14px; color: var(--ink); background: transparent; }
 .activechips { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; align-items: center; }
 .savefilter { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-2xs); font-weight: 600;
   color: var(--navy-600); background: var(--navy-050, #eef3fb); border: 1px solid var(--gray-200);
@@ -215,6 +217,7 @@
   .subbar .sortbox .qf-select { flex: 1; max-width: none; }
   .searchrow { padding: 8px var(--sp-4); }
   .bigsearch { max-width: none; }
+  .bigsearch .kbd { display: none; }         /* Ctrl K vô dụng trên cảm ứng → ẩn, nhường chỗ nút Bộ lọc */
   /* BUG#29: mobile chỉ Search + Sort + nút Bộ lọc; chips + quick filters vào drawer */
   .sc-filter-btn { display: inline-flex; }
   .searchrow .activechips { display: none; }
@@ -235,4 +238,11 @@
   .fpm-head .btn { padding: 7px; font-size: var(--fs-xs); }
   .fpm-head .btn-label { display: none; }   /* icon-only → header gọn 1 hàng */
   .emm-pdf { flex: 0 0 50%; }
+}
+
+/* Màn RẤT hẹp (≤380px, vd 360/320): nút "Bộ lọc" chỉ còn icon (ẩn nhãn) để chắc chắn không bị
+   cắt/tràn khi ô search co tối thiểu. ≥390px vẫn hiện đủ nhãn "Bộ lọc". */
+@media (max-width: 380px) {
+  .sc-filter-label { display: none; }
+  .sc-filter-btn { padding: 9px 11px; }
 }

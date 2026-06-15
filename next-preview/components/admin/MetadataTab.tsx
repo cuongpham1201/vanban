@@ -47,6 +47,7 @@ export default function MetadataTab(): React.ReactElement {
           <div style={{ flex: 1 }} />
           <span className="t-xs mut">{rows.length} trường</span>
         </div>
+        <div style={{ overflowX: 'auto' }}>
         <table className="tbl">
           <thead>
             <tr>
@@ -81,6 +82,7 @@ export default function MetadataTab(): React.ReactElement {
             )}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );
