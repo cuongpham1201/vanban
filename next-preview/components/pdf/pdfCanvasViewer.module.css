@@ -66,8 +66,10 @@
   box-shadow: var(--sh-2);
   background: #fff;
   border-radius: 2px;
-  max-width: 100%;
-  height: auto;
+  /* KHÔNG đặt max-width/height:auto: kích thước canvas do JS set theo fit-width (đúng tỉ lệ, ≤ container
+     ở zoom=1). Nếu để max-width ép width mà inline height giữ nguyên → MÉO ảnh (bug cũ). zoom>1 thì
+     .viewport (overflow:auto) cho cuộn có chủ đích. */
+  display: block;
 }
 
 .state {

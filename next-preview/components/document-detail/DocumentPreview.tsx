@@ -20,6 +20,21 @@ export default function DocumentPreview({ doc }: { doc: DetailDoc }): React.Reac
   const [inTeams, setInTeams] = React.useState(false);
   React.useEffect(() => setInTeams(isTeamsContext()), []);
 
+  // Mobile/PWA: iframe PDF native (#view=FitH) bị iOS Safari/WebView bỏ qua → PDF render theo bề
+  // rộng trang gốc, tràn ngang/cắt mép. Trên màn hẹp HOẶC thiết bị cảm ứng → dùng PdfCanvasViewer
+  // (PDF.js fit-width) thay iframe. Desktop rộng (chuột) GIỮ iframe native như cũ.
+  const [isMobile, setIsMobile] = React.useState(false);
+  React.useEffect(() => {
+    const mq = window.matchMedia('(max-width: 820px), (pointer: coarse)');
+    const update = (): void => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+
+  // Canvas (PDF.js, fit-width) cho Teams + mọi mobile/PWA; iframe native chỉ cho desktop non-Teams.
+  const useCanvas = inTeams || isMobile;
+
   return (
     <section className="viewer" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       <div className="vtoolbar">
@@ -37,8 +52,8 @@ export default function DocumentPreview({ doc }: { doc: DetailDoc }): React.Reac
         )}
       </div>
 
-      {isPdf && inTeams ? (
-        // Teams: iframe PDF bị sandbox chặn → render inline bằng PDF.js (canvas).
+      {isPdf && useCanvas ? (
+        // Teams (sandbox chặn iframe) + mobile/PWA (iOS bỏ qua #view=FitH) → PDF.js canvas fit-width.
         <PdfCanvasViewer fileUrl={fileUrl} downloadUrl={doc.webUrl} fileName={doc.fileName} />
       ) : isPdf ? (
         <iframe
