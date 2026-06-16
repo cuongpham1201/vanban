@@ -4,3 +4,6 @@
 next-env.d.ts
 *.tsbuildinfo
 .env*.local
+
+# AI-3: audit store runtime data (không commit — dữ liệu local)
+/data/ai-audit.json

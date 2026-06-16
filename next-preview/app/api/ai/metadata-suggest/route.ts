@@ -7,6 +7,7 @@ import { MetadataSuggestion } from '@/lib/ai/types';
 import { SuggestionInput } from '@/lib/ai/provider';
 import { buildSuggestionAudit, suggestedFieldKeys } from '@/lib/ai/audit';
 import { extractDocxText } from '@/lib/ai/extract/docxExtractor';
+import { appendSuggestion, pickAuditFields } from '@/lib/ai/auditStore';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,6 +44,8 @@ function rateLimit(key: string): { ok: boolean; retryAfter: number } {
 interface SuggestResponse {
   success: boolean;
   suggestion?: MetadataSuggestion;
+  // AI-3: id audit record để client tham chiếu khi publish (gọi /api/ai/feedback). undefined nếu ghi audit lỗi.
+  auditId?: string;
   error?: string;
 }
 
@@ -159,7 +162,22 @@ export async function POST(req: Request): Promise<NextResponse<SuggestResponse>>
       textChars, // CHỈ số ký tự, KHÔNG log nội dung
       suggestedFields: suggestedFieldKeys(suggestion),
     }));
-    return NextResponse.json({ success: true, suggestion });
+    // AI-3: ghi audit record (BEST-EFFORT — lỗi I/O KHÔNG làm hỏng response gợi ý).
+    let auditId: string | undefined;
+    try {
+      const rec = await appendSuggestion({
+        userEmail: email,
+        source: suggestion.source === 'AzureOpenAI' ? 'AzureOpenAI' : 'RuleBased',
+        fileName: input.fileName ?? '',
+        confidence: suggestion.confidence,
+        aiSuggestion: pickAuditFields(suggestion as unknown as Record<string, unknown>),
+      });
+      auditId = rec.id;
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn('[ai-audit] append suggestion failed', e instanceof Error ? e.message : String(e));
+    }
+    return NextResponse.json({ success: true, suggestion, auditId });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     // eslint-disable-next-line no-console
