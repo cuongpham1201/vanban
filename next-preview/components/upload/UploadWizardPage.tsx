@@ -37,6 +37,8 @@ export default function UploadWizardPage(): React.ReactElement {
   // AI gợi ý metadata (nền tảng) — CHỈ pre-fill, KHÔNG auto save/publish.
   const [aiBusy, setAiBusy] = React.useState(false);
   const [aiNote, setAiNote] = React.useState<string | null>(null);
+  // AI-5: id audit record của lần gợi ý AI gần nhất (ref → luôn lấy giá trị mới nhất khi publish).
+  const aiAuditIdRef = React.useRef<string | null>(null);
   // Chỉ replace khi đã chọn + KHÔNG phải văn bản đã Hết hiệu lực (Phase 6).
   const replaceEligible = !!replaceTarget && replaceTarget.statusLabel !== EXPIRED_LABEL;
 
@@ -101,6 +103,8 @@ export default function UploadWizardPage(): React.ReactElement {
         setAiNote(j?.error ?? `Gợi ý thất bại (HTTP ${res.status}).`);
         return;
       }
+      // AI-5: lưu auditId để gửi feedback khi publish (so AI vs metadata cuối).
+      aiAuditIdRef.current = typeof j.auditId === 'string' ? j.auditId : null;
       const s = j.suggestion as Record<string, unknown>;
       const MAP: [string, keyof UploadForm][] = [
         ['SoVanBan', 'soVanBan'], ['NamBanHanh', 'namBanHanh'], ['NgayBanHanh', 'ngayBanHanh'],
@@ -127,6 +131,40 @@ export default function UploadWizardPage(): React.ReactElement {
       setAiBusy(false);
     }
   };
+  // AI-5: sau khi PUBLISH THÀNH CÔNG → gửi feedback so gợi ý AI vs metadata cuối user xuất bản.
+  // CHỈ gửi nếu có auditId. BEST-EFFORT: lỗi KHÔNG fail publish, chỉ log warning (fire-and-forget).
+  const sendAiFeedback = async (): Promise<void> => {
+    const id = aiAuditIdRef.current;
+    if (!id) {
+      return;
+    }
+    aiAuditIdRef.current = null; // tránh gửi trùng nếu user publish thêm lần nữa
+    try {
+      const yr = Number(form.namBanHanh);
+      const finalMetadata = {
+        SoVanBan: form.soVanBan || undefined,
+        LoaiVanBanPhapLy: form.loaiVanBanPhapLy || undefined,
+        LoaiTaiLieu: form.loaiTaiLieu || undefined,
+        ChuDeNghiepVu: form.chuDeNghiepVu || undefined,
+        TrichYeu: form.trichYeu || undefined,
+        NamBanHanh: Number.isFinite(yr) && form.namBanHanh ? yr : undefined,
+      };
+      const res = await fetch('/api/ai/feedback', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, finalMetadata }),
+      });
+      if (!res.ok) {
+        // eslint-disable-next-line no-console
+        console.warn('[ai-feedback] non-ok response', res.status);
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn('[ai-feedback] failed (không ảnh hưởng publish):', e instanceof Error ? e.message : String(e));
+    }
+  };
+
   const go = (n: number): void => setStep(Math.max(0, Math.min(3, n)));
   const reset = (): void => {
     setForm(EMPTY_FORM);
@@ -201,6 +239,8 @@ export default function UploadWizardPage(): React.ReactElement {
       const res = await fetch('/api/documents/upload', { method: 'POST', body: fd, credentials: 'same-origin' });
       const j = await res.json();
       if (res.status === 201 && j.ok) {
+        // AI-5: publish thành công → gửi feedback AI (fire-and-forget, KHÔNG chặn/await luồng publish).
+        void sendAiFeedback();
         // A2 — Upload file đính kèm SAU khi VB đã tạo (reuse POST /api/documents/[id]/attachments →
         // lưu Attachments/<SoVanBan>). Best-effort: lỗi đính kèm chỉ cảnh báo, KHÔNG chặn PDF/bản mềm.
         const attachWarn = await uploadAttachments(String(j.listItemId ?? ''));
