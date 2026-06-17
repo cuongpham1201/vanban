@@ -10,6 +10,8 @@ export interface MetadataSuggestion {
   NamBanHanh?: number;
   NgayBanHanh?: string;
 
+  NguoiKy?: string; // AI-7.1: người ký cuối văn bản
+
   NhomTaiLieu?: string;
   LoaiVanBanPhapLy?: string;
   LoaiTaiLieu?: string;
@@ -17,6 +19,7 @@ export interface MetadataSuggestion {
 
   DonViPhatHanh?: string;
   DonViSoHuu?: string;
+  CapLuuTru?: string; // AI-7.1: cấp lưu trữ (chỉ thuộc danh sách cố định)
 
   TrangThai?: string;
   MucDoBaoMat?: string;

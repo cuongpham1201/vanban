@@ -8,6 +8,20 @@ import { MetadataSuggestion } from '../types';
 
 const PHAPLY = ['Quyết định', 'Thông báo', 'Công văn', 'Tờ trình', 'Biên bản', 'Nghị quyết', 'Giấy ủy quyền'];
 const LOAITL = ['Quy trình', 'Quy định', 'Quy chế', 'Hướng dẫn', 'Chính sách', 'Biểu mẫu', 'Tiêu chuẩn'];
+// AI-7.1: CapLuuTru CHỈ được chọn đúng 1 giá trị trong danh sách cố định (KHÔNG tự tạo).
+const CAPLUUTRU = [
+  '[00] Văn Bản Điều Hành Chung', '[01] Tổng Giám Đốc', '[02] Giám Đốc Kinh Doanh',
+  '[03] Giám Đốc Tài Chính và Quản Trị', '[04] Giám Đốc Vận Hành và Chuỗi Cung Ứng',
+  '[05] Giám Đốc Sản Xuất - Kỹ Thuật', '[06.01] Phó Giám Đốc Thiết Bị', '[06.02] Phó Giám Đốc Sản Xuất - Kỹ Thuật',
+  '[07] Ban Pháp Chế - Tuân Thủ', '[08] Ban Tài Chính - Kiểm Soát Nội Bộ', '[09] Ban S-H-E',
+  '[10] Phòng Kỹ Thuật, Công Nghệ và Cải Tiến Sản Xuất', '[11] Phòng Vận Hành Kinh Doanh', '[12] Phòng Marketing',
+  '[13] Phòng Kinh Doanh Bia Hơi', '[14] Phòng Kế Toán', '[15] Phòng Kế Hoạch - Vật Tư',
+  '[16] Phòng Hành Chính - Nhân Sự', '[17] Phòng Kiểm Soát Chất Lượng - KCS', '[18] Phòng Cơ Điện',
+  '[19] Kênh Phân Phối', '[20] Kênh Khách Hàng Tổ Chức', '[22] Trung Tâm Điều Hành',
+  '[24] Phân Xưởng Sản Xuất Đông Mai', '[25] Phân Xưởng Cơ Điện - Động Lực Đông Mai',
+  '[26] Phân Xưởng Sản Xuất Hạ Long', '[27] Phân Xưởng Cơ Điện - Động Lực Hạ Long',
+  '[28] Văn Bản Đến', '[29] Văn Bản Đi', '[99] Archive',
+];
 
 const SYSTEM_PROMPT = [
   'Bạn là trợ lý phân loại văn bản hành chính tiếng Việt của hệ thống DMS.',
@@ -17,14 +31,18 @@ const SYSTEM_PROMPT = [
   `LoaiVanBanPhapLy chỉ thuộc: ${PHAPLY.join(', ')}.`,
   `LoaiTaiLieu chỉ thuộc: ${LOAITL.join(', ')}.`,
   'NgayBanHanh định dạng YYYY-MM-DD. confidence là số 0-100. reasoning là mảng câu ngắn, KHÔNG chứa nội dung nhạy cảm.',
-  // AI-7: quy tắc trích metadata chính xác hơn.
-  'SoVanBan: GIỮ ĐỦ định dạng số/năm/ký hiệu (vd "591/2026/QĐ-HCNS"), KHÔNG chỉ lấy số (591).',
+  // AI-7.1: quy tắc trích metadata theo chuẩn BHL.
+  'SoVanBan: CHỈ lấy PHẦN SỐ. Vd "591/2026/QĐ-HCNS" → SoVanBan="591"; "01/2026/HD-HCNS" → "01". TUYỆT ĐỐI KHÔNG ghép năm/loại/đơn vị/ký hiệu (đó là các field riêng).',
   'TrichYeu: mô tả NỘI DUNG VIỆC của văn bản (vd "Điều chuyển Nguyễn Thành Đoàn").',
   'ChuDeNghiepVu: NHÓM chủ đề NGẮN (vd "Nhân sự"), KHÔNG phải trích yếu dài.',
-  'DonViPhatHanh: suy từ MÃ đơn vị trong ký hiệu — HCNS→Hành chính nhân sự, KT→Kế toán, KHVT→Kế hoạch vật tư, KCS→Kiểm soát chất lượng, SHE→An toàn - Sức khỏe - Môi trường; KHÔNG chắc → null.',
+  'NguoiKy: tên NGƯỜI KÝ ở cuối văn bản (dưới chức danh TỔNG GIÁM ĐỐC/GIÁM ĐỐC/PHÓ GIÁM ĐỐC/TRƯỞNG PHÒNG...). Vd "TỔNG GIÁM ĐỐC\\nDoãn Trường Giang" → "Doãn Trường Giang". KHÔNG chắc → null.',
+  'DonViPhatHanh: TÊN ĐẦY ĐỦ phòng/ban, suy từ ký hiệu/nơi nhận/chữ ký/phần lưu. Vd QĐ-HCNS → "Phòng Hành Chính - Nhân Sự"; TB-KCS → "Phòng Kiểm Soát Chất Lượng - KCS".',
+  'DonViSoHuu: thường BẰNG DonViPhatHanh.',
+  `CapLuuTru: CHỈ chọn ĐÚNG 1 giá trị NGUYÊN VĂN trong danh sách (KHÔNG tự tạo, KHÔNG trả mã/viết tắt): ${CAPLUUTRU.join(' | ')}. Map vd HCNS→"[16] Phòng Hành Chính - Nhân Sự", KCS→"[17] Phòng Kiểm Soát Chất Lượng - KCS", TTĐH→"[22] Trung Tâm Điều Hành". Nếu đã xác định được DonViPhatHanh/DonViSoHuu thì BẮT BUỘC thử map sang CapLuuTru trước khi trả null. Không xác định được → null.`,
   'NhomTaiLieu: văn bản nhân sự → "Tổ chức – Nhân sự".',
-  'KHÔNG bịa: thiếu dữ liệu thì để null, null tốt hơn đoán sai.',
-  'Schema: {SoVanBan,NamBanHanh,NgayBanHanh,NhomTaiLieu,LoaiVanBanPhapLy,LoaiTaiLieu,ChuDeNghiepVu,DonViPhatHanh,DonViSoHuu,TrichYeu,confidence,reasoning}.',
+  'ƯU TIÊN NỘI DUNG văn bản hơn tên file; nếu nội dung và tên file MÂU THUẪN → theo NỘI DUNG.',
+  'KHÔNG đoán bừa: thiếu dữ liệu thì để null, null tốt hơn dữ liệu sai.',
+  'Schema: {SoVanBan,NamBanHanh,NgayBanHanh,NguoiKy,NhomTaiLieu,LoaiVanBanPhapLy,LoaiTaiLieu,ChuDeNghiepVu,DonViPhatHanh,DonViSoHuu,CapLuuTru,TrichYeu,confidence,reasoning}.',
 ].join(' ');
 
 interface AzureCfg {
@@ -128,12 +146,14 @@ export class AzureOpenAIProvider implements MetadataSuggestionProvider {
       SoVanBan: str(j.SoVanBan),
       NamBanHanh: num(j.NamBanHanh),
       NgayBanHanh: str(j.NgayBanHanh),
+      NguoiKy: str(j.NguoiKy),
       NhomTaiLieu: str(j.NhomTaiLieu),
       LoaiVanBanPhapLy: inSet(j.LoaiVanBanPhapLy, PHAPLY),
       LoaiTaiLieu: inSet(j.LoaiTaiLieu, LOAITL),
       ChuDeNghiepVu: str(j.ChuDeNghiepVu),
       DonViPhatHanh: str(j.DonViPhatHanh),
       DonViSoHuu: str(j.DonViSoHuu),
+      CapLuuTru: inSet(j.CapLuuTru, CAPLUUTRU), // CHỈ nhận giá trị trong danh sách cố định
       TrichYeu: str(j.TrichYeu),
       confidence: conf === undefined ? 70 : Math.max(0, Math.min(100, Math.round(conf))),
       reasoning: reasoning.length ? reasoning : ['Azure OpenAI suy luận từ nội dung'],
