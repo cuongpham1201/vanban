@@ -6,7 +6,7 @@ import { suggestMetadata, getActiveProviderName } from '@/lib/ai/metadataSuggest
 import { MetadataSuggestion } from '@/lib/ai/types';
 import { SuggestionInput } from '@/lib/ai/provider';
 import { buildSuggestionAudit, suggestedFieldKeys } from '@/lib/ai/audit';
-import { extractDocxText } from '@/lib/ai/extract/docxExtractor';
+import { extractDocumentText, ExtractResult } from '@/lib/ai/extract';
 import { appendSuggestion, pickAuditFields } from '@/lib/ai/auditStore';
 
 export const dynamic = 'force-dynamic';
@@ -46,6 +46,8 @@ interface SuggestResponse {
   suggestion?: MetadataSuggestion;
   // AI-3: id audit record để client tham chiếu khi publish (gọi /api/ai/feedback). undefined nếu ghi audit lỗi.
   auditId?: string;
+  // AI-7: trạng thái trích text (để UI/log biết pdf-scan cần OCR, .doc cần LibreOffice, ...).
+  extract?: { kind: ExtractResult['kind']; ok: boolean; charCount: number; reason?: string };
   error?: string;
 }
 
@@ -107,6 +109,7 @@ export async function POST(req: Request): Promise<NextResponse<SuggestResponse>>
   const contentType = req.headers.get('content-type') ?? '';
   let input: SuggestionInput;
   let textChars = 0;
+  let extract: ExtractResult | undefined; // AI-7: trạng thái trích text (kind/ok/charCount/reason)
 
   if (contentType.includes('multipart/form-data')) {
     let form: FormData;
@@ -120,10 +123,12 @@ export async function POST(req: Request): Promise<NextResponse<SuggestResponse>>
     const title = ((form.get('title') as string | null) ?? '').trim();
     let textContent = '';
     if (file instanceof File && file.size > 0) {
-      // Trích text DOCX server-side (không vỡ route nếu lỗi/không phải .docx → text rỗng).
-      const ex = await extractDocxText(await file.arrayBuffer(), file.name);
-      textContent = ex.text;
-      textChars = ex.chars;
+      // AI-7: router trích text (.docx/.doc qua LibreOffice/.pdf text-layer; pdf-scan → cần OCR sau).
+      // BEST-EFFORT: lỗi/không hỗ trợ → text rỗng, AI vẫn fallback filename/title.
+      const buf = Buffer.from(await file.arrayBuffer());
+      extract = await extractDocumentText({ fileName: file.name, mimeType: file.type, buffer: buf });
+      textContent = extract.text;
+      textChars = extract.charCount;
     }
     input = {
       fileName: fileName.slice(0, 400) || undefined,
@@ -160,6 +165,8 @@ export async function POST(req: Request): Promise<NextResponse<SuggestResponse>>
       source: suggestion.source,
       confidence: suggestion.confidence,
       textChars, // CHỈ số ký tự, KHÔNG log nội dung
+      extractKind: extract?.kind, // AI-7: docx/doc/pdf-text/pdf-scan/...
+      extractReason: extract?.reason,
       suggestedFields: suggestedFieldKeys(suggestion),
     }));
     // AI-3: ghi audit record (BEST-EFFORT — lỗi I/O KHÔNG làm hỏng response gợi ý).
@@ -177,7 +184,12 @@ export async function POST(req: Request): Promise<NextResponse<SuggestResponse>>
       // eslint-disable-next-line no-console
       console.warn('[ai-audit] append suggestion failed', e instanceof Error ? e.message : String(e));
     }
-    return NextResponse.json({ success: true, suggestion, auditId });
+    return NextResponse.json({
+      success: true,
+      suggestion,
+      auditId,
+      ...(extract ? { extract: { kind: extract.kind, ok: extract.ok, charCount: extract.charCount, reason: extract.reason } } : {}),
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     // eslint-disable-next-line no-console

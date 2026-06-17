@@ -17,6 +17,13 @@ const SYSTEM_PROMPT = [
   `LoaiVanBanPhapLy chỉ thuộc: ${PHAPLY.join(', ')}.`,
   `LoaiTaiLieu chỉ thuộc: ${LOAITL.join(', ')}.`,
   'NgayBanHanh định dạng YYYY-MM-DD. confidence là số 0-100. reasoning là mảng câu ngắn, KHÔNG chứa nội dung nhạy cảm.',
+  // AI-7: quy tắc trích metadata chính xác hơn.
+  'SoVanBan: GIỮ ĐỦ định dạng số/năm/ký hiệu (vd "591/2026/QĐ-HCNS"), KHÔNG chỉ lấy số (591).',
+  'TrichYeu: mô tả NỘI DUNG VIỆC của văn bản (vd "Điều chuyển Nguyễn Thành Đoàn").',
+  'ChuDeNghiepVu: NHÓM chủ đề NGẮN (vd "Nhân sự"), KHÔNG phải trích yếu dài.',
+  'DonViPhatHanh: suy từ MÃ đơn vị trong ký hiệu — HCNS→Hành chính nhân sự, KT→Kế toán, KHVT→Kế hoạch vật tư, KCS→Kiểm soát chất lượng, SHE→An toàn - Sức khỏe - Môi trường; KHÔNG chắc → null.',
+  'NhomTaiLieu: văn bản nhân sự → "Tổ chức – Nhân sự".',
+  'KHÔNG bịa: thiếu dữ liệu thì để null, null tốt hơn đoán sai.',
   'Schema: {SoVanBan,NamBanHanh,NgayBanHanh,NhomTaiLieu,LoaiVanBanPhapLy,LoaiTaiLieu,ChuDeNghiepVu,DonViPhatHanh,DonViSoHuu,TrichYeu,confidence,reasoning}.',
 ].join(' ');
 

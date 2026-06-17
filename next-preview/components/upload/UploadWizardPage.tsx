@@ -81,13 +81,21 @@ export default function UploadWizardPage(): React.ReactElement {
     setAiBusy(true);
     setAiNote(null);
     try {
-      // Nếu có bản mềm .docx → gửi multipart để server trích text (AI-2A); nếu không → JSON như cũ.
-      const docx = editableFile?.raw && editableFile.name.toLowerCase().endsWith('.docx') ? editableFile.raw : null;
+      // AI-7: ưu tiên file có TEXT tốt nhất để server trích: bản mềm .docx/.doc > PDF chính.
+      // (.doc convert qua LibreOffice; PDF text-layer qua pdfjs; pdf-scan → server báo cần OCR.)
+      // Không có file phù hợp → JSON filename/title như cũ.
+      const edName = (editableFile?.name ?? '').toLowerCase();
+      const pickedFile: File | null =
+        editableFile?.raw && (edName.endsWith('.docx') || edName.endsWith('.doc'))
+          ? editableFile.raw
+          : file?.raw && file.name.toLowerCase().endsWith('.pdf')
+          ? file.raw
+          : null;
       let res: Response;
-      if (docx) {
+      if (pickedFile) {
         const fd = new FormData();
-        fd.append('file', docx);
-        fd.append('fileName', file?.name ?? '');
+        fd.append('file', pickedFile);
+        fd.append('fileName', file?.name ?? pickedFile.name); // tên VB chính (PDF) để AI thấy đúng tên
         fd.append('title', form.trichYeu ?? '');
         res = await fetch('/api/ai/metadata-suggest', { method: 'POST', credentials: 'same-origin', body: fd });
       } else {
@@ -122,9 +130,19 @@ export default function UploadWizardPage(): React.ReactElement {
         }
       }
       setForm(next);
+      // AI-7: trạng thái trích text (để biết .doc/pdf-scan...). Log gọn, KHÔNG log nội dung.
+      const ext = j.extract as { kind?: string; charCount?: number; reason?: string } | undefined;
+      // eslint-disable-next-line no-console
+      console.log('[ai-suggest]', `extractKind=${ext?.kind ?? 'n/a'}`, `charCount=${ext?.charCount ?? 0}`, `reason=${ext?.reason ?? ''}`);
       const conf = typeof s.confidence === 'number' ? s.confidence : 0;
       const reasons = Array.isArray(s.reasoning) ? (s.reasoning as string[]).join(' · ') : '';
-      setAiNote(`Độ tin cậy ${conf}/100 · đã điền ${filled} trường trống (bạn tự kiểm tra & sửa). ${reasons}`.trim());
+      let note = `Độ tin cậy ${conf}/100 · đã điền ${filled} trường trống (bạn tự kiểm tra & sửa). ${reasons}`.trim();
+      if (ext?.kind === 'pdf-scan') {
+        note = `⚠ PDF là bản scan, AI hiện chỉ suy luận từ tên file. OCR sẽ được bổ sung sau. ${note}`.trim();
+      } else if (ext?.kind === 'doc' && ext.reason === 'libreoffice-not-installed') {
+        note = `⚠ File .doc cần LibreOffice trên máy chủ để đọc nội dung (chưa cài). AI tạm suy luận từ tên file. ${note}`.trim();
+      }
+      setAiNote(note);
     } catch (e) {
       setAiNote(e instanceof Error ? e.message : 'Lỗi mạng khi gọi gợi ý.');
     } finally {
