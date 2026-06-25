@@ -151,6 +151,16 @@ interface ReadItem {
   id: string;
   fields?: ReadFields;
 }
+interface ReadsPage {
+  value: ReadItem[];
+  '@odata.nextLink'?: string;
+}
+
+// DMSNotificationReads có thể có NHIỀU page khi nhiều user × nhiều thông báo. Phải paging ĐẦY ĐỦ
+// theo @odata.nextLink — nếu chỉ lấy 1 page ($top=1000 rồi dừng) thì read-record của user nằm ở
+// page sau bị bỏ sót → sau mark-all-read + refresh, thông báo quay lại unread.
+const READS_PAGE_SIZE = 999; // page-cap của Graph list items
+const READS_MAX_PAGES = 50; // chặn vòng lặp vô hạn (~50k record)
 
 const FIELD_SELECT =
   'Title,UserEmail,NotificationType,Severity,DocumentId,DocumentNumber,DocumentTitle,Message,Url,IsRead,CreatedAt,CreatedByEmail,SourceModule,EventKey,PayloadJson';
@@ -204,17 +214,28 @@ function fromSp(item: SpItem): DmsNotification {
   };
 }
 
-/** Set NotificationId mà user đã đọc (từ DMSNotificationReads). */
+/**
+ * Set NotificationId mà user đã đọc (từ DMSNotificationReads).
+ * - Lọc theo UserEmail hiện tại (read-state riêng từng user).
+ * - Paging ĐẦY ĐỦ theo @odata.nextLink (KHÔNG dừng ở page đầu) → không bỏ sót record của user
+ *   khi list lớn; nhờ đó mark-all-read không bị "unread quay lại" và dedup ghi record chính xác.
+ */
 async function getUserReadIds(accessToken: string, siteId: string, userEmail: string): Promise<Set<string>> {
   const readsListId = await resolveReadsListId(accessToken);
   if (!readsListId) return new Set();
-  const resp = await graphFetch<{ value: ReadItem[] }>(
-    `/sites/${siteId}/lists/${readsListId}/items?$expand=fields($select=NotificationId,UserEmail)&$top=1000`,
-    { accessToken }
-  );
+  const want = normEmail(userEmail);
   const set = new Set<string>();
-  for (const it of resp.value ?? []) {
-    if (normEmail(it.fields?.UserEmail ?? '') === userEmail) set.add(String(it.fields?.NotificationId ?? ''));
+  let nextUrl: string | undefined =
+    `/sites/${siteId}/lists/${readsListId}/items?$expand=fields($select=NotificationId,UserEmail)&$top=${READS_PAGE_SIZE}`;
+  let pages = 0;
+  while (nextUrl) {
+    const page: ReadsPage = await graphFetch<ReadsPage>(nextUrl, { accessToken });
+    for (const it of page.value ?? []) {
+      if (normEmail(it.fields?.UserEmail ?? '') === want) set.add(String(it.fields?.NotificationId ?? ''));
+    }
+    pages++;
+    if (pages >= READS_MAX_PAGES) break;
+    nextUrl = page['@odata.nextLink'];
   }
   return set;
 }

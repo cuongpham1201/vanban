@@ -53,6 +53,13 @@ function clog(msg: string): void {
   console.log(`[CACHE] ${msg}`);
 }
 
+// True nếu driveItem nằm trong (hoặc dưới) một thư mục "Attachments" → là file đính kèm, KHÔNG phải
+// văn bản chính. parentReference.path dạng ".../root:/[Cấp lưu trữ]/Attachments/[SoVanBan]".
+function isAttachmentPath(path?: string): boolean {
+  if (!path) return false;
+  return /(^|\/)Attachments(\/|$)/i.test(path);
+}
+
 async function fetchAndBuild(accessToken: string): Promise<CachedDocs> {
   const t0 = performance.now();
   _metrics.graphFetches++;
@@ -80,7 +87,16 @@ async function fetchAndBuild(accessToken: string): Promise<CachedDocs> {
     nextUrl = page['@odata.nextLink'];
   }
 
-  const fileItems = rawItems.filter((it) => it.driveItem && it.driveItem.file && !it.driveItem.folder);
+  // File đính kèm nằm trong thư mục con "Attachments/[SoVanBan]/" của thư mục văn bản cha.
+  // Trong SharePoint document library MỖI file LÀ một list item → query /items trả CẢ attachment.
+  // Attachment KHÔNG có metadata business (NgayBanHanh/NamBanHanh/TrangThai trống) nên nếu coi như
+  // văn bản thì namBanHanh fallback = năm hiện tại + trạng thái mặc định Active → bị đẩy lên đầu
+  // "Văn bản mới nhất" với ngày sai. Loại chúng khỏi collection văn bản chính (vẫn truy cập được
+  // qua panel Đính kèm của văn bản cha — listAttachments gọi drive riêng).
+  const isFileItem = (it: GraphListItem): boolean =>
+    !!(it.driveItem && it.driveItem.file && !it.driveItem.folder);
+  const fileItems = rawItems.filter((it) => isFileItem(it) && !isAttachmentPath(it.driveItem?.parentReference?.path));
+  const attachmentItems = rawItems.filter((it) => isFileItem(it) && isAttachmentPath(it.driveItem?.parentReference?.path));
   const mapped = fileItems.map(mapSharePointItemToDocument);
   const documents = pairDocuments(mapped);
   const stats = analyzePairing(mapped);
@@ -88,7 +104,8 @@ async function fetchAndBuild(accessToken: string): Promise<CachedDocs> {
 
   // eslint-disable-next-line no-console
   console.log(
-    `[MAP] raw=${rawItems.length} file=${fileItems.length} mapped=${mapped.length} documents=${documents.length} ` +
+    `[MAP] raw=${rawItems.length} file=${fileItems.length} attachments-excluded=${attachmentItems.length} ` +
+      `mapped=${mapped.length} documents=${documents.length} ` +
       `pages=${pages} byExt=${JSON.stringify(stats.byExt)} missingKeyField=${JSON.stringify(stats.missingKeyField)}`
   );
   clog(`documents refresh done ${buildMs.toFixed(0)}ms (docs=${documents.length}, pages=${pages})`);
