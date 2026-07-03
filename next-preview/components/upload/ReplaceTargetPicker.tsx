@@ -23,7 +23,7 @@ export default function ReplaceTargetPicker({
 
   React.useEffect(() => {
     let alive = true;
-    fetch('/api/documents', { credentials: 'same-origin' })
+    fetch('/api/documents?fields=lite', { credentials: 'same-origin' })
       .then((r) => r.json())
       .then((j: { ok: boolean; documents?: IDocument[] }) => {
         if (alive && j?.ok) setDocs((j.documents ?? []).map(toSearchDoc));

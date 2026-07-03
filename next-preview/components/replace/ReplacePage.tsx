@@ -66,7 +66,7 @@ export default function ReplacePage(): React.ReactElement {
 
   React.useEffect(() => {
     let alive = true;
-    fetch('/api/documents', { credentials: 'same-origin' })
+    fetch('/api/documents?fields=lite', { credentials: 'same-origin' })
       .then(async (r) => {
         const j = (await r.json()) as DocsResponse;
         if (!r.ok || !j.ok) {

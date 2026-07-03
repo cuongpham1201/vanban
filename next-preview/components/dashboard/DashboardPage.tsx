@@ -3,27 +3,23 @@
 import * as React from 'react';
 import Link from 'next/link';
 import Icon, { IconName } from '@/components/shell/Icon';
-import { IDocument } from '@dms/models/IDocument';
-import {
-  Kpis,
-  DistItem,
-  RecentDoc,
-  computeKpis,
-  distribution,
-  recentDocuments,
-  typeOf,
-  deptOf,
-  yearDistribution,
-} from './dashboardTypes';
+import { Kpis, DistItem, RecentDoc } from './dashboardTypes';
 import KpiCards from './KpiCards';
 import DocumentTypeChart from './DocumentTypeChart';
 import DepartmentChart from './DepartmentChart';
 import YearChart from './YearChart';
 import RecentDocuments from './RecentDocuments';
 
-interface DocsResponse {
+interface DashCharts {
+  kpis: Kpis;
+  byType: DistItem[];
+  byDept: DistItem[];
+  byYear: DistItem[];
+  recent: RecentDoc[];
+}
+interface DashResponse {
   ok: boolean;
-  documents?: IDocument[];
+  charts?: DashCharts;
   error?: string;
 }
 
@@ -42,7 +38,7 @@ const ACTIONS: QuickAction[] = [
 ];
 
 // BUG#11: cache client → back/đổi trang không blank, render cache + refresh nền.
-let _dashCache: IDocument[] | undefined;
+let _dashCache: DashCharts | undefined;
 
 // Drill-down: build href /search?<facetKey>=<value> (seed filter ở Search Center).
 const drill = (key: string, value: string): string =>
@@ -50,20 +46,21 @@ const drill = (key: string, value: string): string =>
 
 // Dashboard nghiệp vụ (read-only). MỘT lần GET /api/documents → tổng hợp client-side.
 export default function DashboardPage(): React.ReactElement {
-  const [docs, setDocs] = React.useState<IDocument[] | null>(_dashCache ?? null);
+  const [data, setData] = React.useState<DashCharts | null>(_dashCache ?? null);
   const [error, setError] = React.useState<string | undefined>();
 
   React.useEffect(() => {
     let alive = true;
-    fetch('/api/documents', { credentials: 'same-origin' })
+    // P: dùng /api/dashboard (aggregate) thay vì kéo full /api/documents → cắt payload ~132KB → ~6KB.
+    fetch('/api/dashboard', { credentials: 'same-origin' })
       .then(async (r) => {
-        const j = (await r.json()) as DocsResponse;
-        if (!r.ok || !j.ok) {
+        const j = (await r.json()) as DashResponse;
+        if (!r.ok || !j.ok || !j.charts) {
           throw new Error(j?.error ?? `Lỗi tải dữ liệu (HTTP ${r.status}).`);
         }
-        _dashCache = j.documents ?? [];
+        _dashCache = j.charts;
         if (alive) {
-          setDocs(_dashCache);
+          setData(_dashCache);
         }
       })
       .catch((e: Error) => alive && !_dashCache && setError(e.message));
@@ -72,14 +69,12 @@ export default function DashboardPage(): React.ReactElement {
     };
   }, []);
 
-  const loading = docs === null && !error;
-  const list = docs ?? [];
-
-  const kpis: Kpis | null = React.useMemo(() => (docs ? computeKpis(docs) : null), [docs]);
-  const byType: DistItem[] = React.useMemo(() => distribution(list, typeOf, 8), [list]);
-  const byDept: DistItem[] = React.useMemo(() => distribution(list, deptOf, 6), [list]);
-  const byYear: DistItem[] = React.useMemo(() => yearDistribution(list, 8), [list]);
-  const recent: RecentDoc[] = React.useMemo(() => recentDocuments(list, 10), [list]);
+  const loading = data === null && !error;
+  const kpis: Kpis | null = data ? data.kpis : null;
+  const byType: DistItem[] = data?.byType ?? [];
+  const byDept: DistItem[] = data?.byDept ?? [];
+  const byYear: DistItem[] = data?.byYear ?? [];
+  const recent: RecentDoc[] = data?.recent ?? [];
 
   return (
     <div className="db-root scrollbar">

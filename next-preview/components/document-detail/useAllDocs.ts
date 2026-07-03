@@ -11,7 +11,8 @@ let _inflight: Promise<SearchDoc[]> | undefined;
 const TTL = 5 * 60 * 1000;
 
 async function fetchDocs(): Promise<SearchDoc[]> {
-  const r = await fetch('/api/documents', { credentials: 'same-origin' });
+  // fields=lite: cắt payload (~132KB→~70KB br). Picker/resolve chỉ đọc field lite qua toSearchDoc.
+  const r = await fetch('/api/documents?fields=lite', { credentials: 'same-origin' });
   const j = (await r.json()) as { documents?: IDocument[] };
   return (j.documents ?? []).map(toSearchDoc);
 }

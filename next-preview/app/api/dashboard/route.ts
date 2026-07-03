@@ -12,6 +12,16 @@ import {
   computeUnitStats,
   computeStorageFolders,
 } from '@/lib/dms/derive';
+// Aggregate cho DashboardPage — tái dùng ĐÚNG hàm client đang dùng để số liệu khớp tuyệt đối
+// (thay vì DashboardPage tự kéo full list rồi tính client-side).
+import {
+  computeKpis as computeChartKpis,
+  distribution,
+  typeOf,
+  deptOf,
+  yearDistribution,
+  recentDocuments,
+} from '@/components/dashboard/dashboardTypes';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,6 +52,15 @@ export async function GET(): Promise<NextResponse> {
       expiringDocuments: computeExpiring(docs),
       storageStats: computeUnitStats(docs),
       storageFolders: computeStorageFolders(docs),
+      // charts: aggregate cho DashboardPage (KPIs + phân bố + recent) — tính server, cùng hàm client.
+      // DashboardPage đọc charts thay vì kéo full /api/documents (cắt payload ~132KB → ~6KB).
+      charts: {
+        kpis: computeChartKpis(docs),
+        byType: distribution(docs, typeOf, 8),
+        byDept: distribution(docs, deptOf, 6),
+        byYear: yearDistribution(docs, 8),
+        recent: recentDocuments(docs, 10),
+      },
       generatedAt: new Date(result.cached?.builtAt ?? Date.now()).toISOString(),
       cacheTtlSeconds: 300,
     };
