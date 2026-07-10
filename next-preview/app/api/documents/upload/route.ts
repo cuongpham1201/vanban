@@ -64,6 +64,9 @@ export async function POST(req: Request): Promise<NextResponse> {
   const metadataRaw = form.get('metadata');
   const idempotencyKey = (form.get('idempotencyKey') as string | null)?.trim() ?? '';
   const override = (form.get('override') as string | null) === 'true';
+  // Tùy chọn từ người upload: KHÔNG gửi thông báo NEW_DOCUMENT cho lần đăng này.
+  // Parse chặt true/false; THIẾU field (client cũ) → false → giữ hành vi gửi như trước (tương thích ngược).
+  const suppressNotifications = (form.get('suppressNotifications') as string | null) === 'true';
 
   if (!idempotencyKey) {
     return NextResponse.json({ ok: false, error: 'Thiếu idempotencyKey.' }, { status: 422 });
@@ -180,21 +183,32 @@ export async function POST(req: Request): Promise<NextResponse> {
       ...(result.warning ? { warning: result.warning } : {}),
     };
     idemComplete(email, idempotencyKey, body);
-    // FIX A: VĂN BẢN ĐÃ TẠO XONG → bắn notif FIRE-AND-FORGET (KHÔNG await) để response trả NGAY.
-    // Teams Activity fan-out toàn group (~150 user, tuần tự) chạy NỀN sau khi upload hoàn tất —
-    // tránh giữ request gây 504/"Failed to fetch"/trùng số VB. KHÔNG throw làm hỏng upload.
-    void notifyNewDocument({
-      actorEmail: email,
-      documentId: String(result.listItemId),
-      documentNumber: metadata.SoVanBan,
-      documentTitle: metadata.TrichYeu,
-      donViSoanThao: metadata.DonViPhatHanh,
-      ngayBanHanh: metadata.NgayBanHanh,
-      trangThai: metadata.TrangThai,
-    }).catch((e) => {
-      // eslint-disable-next-line no-console
-      console.error('[upload][notify] failed', e instanceof Error ? e.message : String(e));
-    });
+    // Audit runtime (KHÔNG cột SharePoint mới): ghi lại quyết định tắt/gửi thông báo của lần upload.
+    // eslint-disable-next-line no-console
+    console.log('[upload][notify]', JSON.stringify({
+      by: email, documentId: String(result.listItemId), soVanBan: metadata.SoVanBan,
+      suppressNotifications, action: suppressNotifications ? 'suppressed-by-uploader' : 'dispatch',
+    }));
+    // suppressNotifications=true → CHẶN NGAY tại điểm phát event NEW_DOCUMENT (không gọi notifyNewDocument)
+    // ⇒ bỏ qua TOÀN BỘ channel (web + email + Teams Activity) cùng lúc, không thể rò 1 kênh.
+    // KHÔNG ảnh hưởng document/metadata/file/attachment/audit/cache (đều đã xong ở trên).
+    if (!suppressNotifications) {
+      // FIX A: VĂN BẢN ĐÃ TẠO XONG → bắn notif FIRE-AND-FORGET (KHÔNG await) để response trả NGAY.
+      // Teams Activity fan-out toàn group (~150 user, tuần tự) chạy NỀN sau khi upload hoàn tất —
+      // tránh giữ request gây 504/"Failed to fetch"/trùng số VB. KHÔNG throw làm hỏng upload.
+      void notifyNewDocument({
+        actorEmail: email,
+        documentId: String(result.listItemId),
+        documentNumber: metadata.SoVanBan,
+        documentTitle: metadata.TrichYeu,
+        donViSoanThao: metadata.DonViPhatHanh,
+        ngayBanHanh: metadata.NgayBanHanh,
+        trangThai: metadata.TrangThai,
+      }).catch((e) => {
+        // eslint-disable-next-line no-console
+        console.error('[upload][notify] failed', e instanceof Error ? e.message : String(e));
+      });
+    }
     return NextResponse.json(body, { status: 201 });
   } catch (e) {
     idemRelease(email, idempotencyKey); // cho phép thử lại

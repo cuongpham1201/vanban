@@ -26,6 +26,9 @@ export default function UploadWizardPage(): React.ReactElement {
 
   const [canWrite, setCanWrite] = React.useState(false);
   const [publishing, setPublishing] = React.useState(false);
+  // Người upload chủ động tắt thông báo cho lần đăng này (vd VB nhập bổ sung/đã ban hành lâu).
+  // Mặc định false → giữ hành vi cũ (vẫn gửi). Chỉ tắt khi user tự tích.
+  const [suppressNotifications, setSuppressNotifications] = React.useState(false);
   const [publishError, setPublishError] = React.useState<string | null>(null);
   const [dupMatches, setDupMatches] = React.useState<{ id: string; soVanBan: string; trichYeu: string }[] | null>(null);
   const [result, setResult] = React.useState<PublishResult | null>(null);
@@ -251,6 +254,8 @@ export default function UploadWizardPage(): React.ReactElement {
       fd.append('metadata', JSON.stringify(form));
       fd.append('capLuuTru', form.capLuuTru); // folder lưu file (tách khỏi DonViSoHuu metadata)
       fd.append('idempotencyKey', idemKey);
+      // Tắt thông báo cho lần đăng này (server parse boolean, mặc định false).
+      fd.append('suppressNotifications', suppressNotifications ? 'true' : 'false');
       if (override) {
         fd.append('override', 'true');
       }
@@ -365,6 +370,29 @@ export default function UploadWizardPage(): React.ReactElement {
           {step === 2 && (
             <div className="panel">
               <ReviewStep form={form} file={file} editableFile={editableFile} attachments={attachments} replaceTarget={replaceEligible ? replaceTarget : null} />
+              {/* Tùy chọn: không gửi thông báo cho lần đăng này (VB nhập bổ sung/đã ban hành lâu). */}
+              <label
+                className="uw-suppress-noti"
+                style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 14, padding: '12px 14px', border: '1px solid var(--gray-200)', borderRadius: 'var(--r-md)', cursor: 'pointer' }}
+              >
+                <input
+                  type="checkbox"
+                  checked={suppressNotifications}
+                  onChange={(e) => setSuppressNotifications(e.target.checked)}
+                  style={{ marginTop: 3, flexShrink: 0 }}
+                />
+                <span style={{ minWidth: 0 }}>
+                  <span style={{ fontWeight: 600, fontSize: 'var(--fs-sm)' }}>Không gửi thông báo cho văn bản này</span>
+                  <div className="t-xs mut" style={{ marginTop: 2 }}>
+                    Dùng cho văn bản được nhập bổ sung hoặc đã ban hành từ lâu. Hệ thống vẫn lưu văn bản bình thường nhưng không gửi Email và Teams Activity.
+                  </div>
+                  {suppressNotifications && (
+                    <div className="t-xs" style={{ marginTop: 6, fontWeight: 600, color: 'var(--gold-700, #b45309)' }}>
+                      Văn bản sẽ được đăng nhưng không gửi thông báo tới người dùng.
+                    </div>
+                  )}
+                </span>
+              </label>
               {publishError && (
                 <div className="uw-publish-error" style={{ marginTop: 14, padding: '10px 14px', background: 'var(--danger-100)', color: 'var(--danger-700)', borderRadius: 'var(--r-md)', fontSize: 'var(--fs-sm)' }}>
                   {publishError}
