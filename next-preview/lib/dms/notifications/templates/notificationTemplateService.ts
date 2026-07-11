@@ -66,21 +66,25 @@ async function readEffective(
 ): Promise<NotificationTemplate> {
   const def = getDefaultTemplate(eventType, channel);
   const key = templateConfigKey(eventType, channel);
+  // LỖI ĐỌC DMSConfig (throttle 429/network) → NÉM để getEffectiveTemplate giữ giá trị cache cũ
+  // (stale-on-error), TRÁNH fail-open về default (default nhiều event = enabled:true → làm MẤT
+  // trạng thái "đã tắt" admin lưu → gửi nhầm notification đã tắt). KHÔNG catch ở đây.
+  const rec = await getConfigRecord(accessToken, key);
+  if (!rec) return def; // KHÔNG có override trong DMSConfig → dùng default
   try {
-    const rec = await getConfigRecord(accessToken, key);
-    if (!rec) return def;
     const saved = JSON.parse(rec.json) as Partial<NotificationTemplate>;
     return mergeTemplate(def, saved);
-  } catch (e) {
-    // eslint-disable-next-line no-console
-    console.warn('[dms-noti][template] read failed → fallback default', JSON.stringify({ key, error: e instanceof Error ? e.message : String(e) }));
+  } catch {
+    // ConfigJson HỎNG (không phải lỗi đọc tạm thời) → default an toàn.
     return def;
   }
 }
 
 /**
- * Effective template (có cache 60s). Tự mint read token nếu không truyền.
- * KHÔNG bao giờ throw — token/đọc lỗi → trả default (đảm bảo luồng gửi notification không vỡ).
+ * Effective template (cache 60s). Tự mint read token nếu không truyền. KHÔNG bao giờ throw.
+ * STALE-ON-ERROR: đọc DMSConfig lỗi (throttle/network) → GIỮ giá trị đã đọc được gần nhất
+ * (kể cả quá hạn) để trạng thái "đã tắt" của admin KHÔNG bị bỏ qua; chỉ dùng default khi
+ * CHƯA từng đọc thành công lần nào (cache trống).
  */
 export async function getEffectiveTemplate(
   eventType: NotificationType,
@@ -97,7 +101,10 @@ export async function getEffectiveTemplate(
     return tpl;
   } catch (e) {
     // eslint-disable-next-line no-console
-    console.warn('[dms-noti][template] effective resolve failed → default', JSON.stringify({ key, error: e instanceof Error ? e.message : String(e) }));
+    console.warn('[dms-noti][template] resolve failed → serve stale/default', JSON.stringify({ key, hasStale: !!cached, error: e instanceof Error ? e.message : String(e) }));
+    // Giữ cache cũ (nếu có) → không mất "đã tắt". KHÔNG cập nhật ts → lần sau vẫn thử đọc lại
+    // để tự phục hồi khi Graph hết throttle.
+    if (cached) return cached.tpl;
     return getDefaultTemplate(eventType, channel);
   }
 }
@@ -126,7 +133,9 @@ export async function getAllEffectiveTemplates(accessToken: string): Promise<Not
   const out: NotificationTemplate[] = [];
   for (const ev of TEMPLATE_EVENTS) {
     for (const ch of TEMPLATE_CHANNELS) {
-      out.push(await readEffective(accessToken, ev, ch));
+      // readEffective NÉM khi đọc lỗi (để dispatch stale-on-error). Ở đây (admin hiển thị) chỉ cần
+      // degrade về default cho từng ô để trang không vỡ — KHÔNG ảnh hưởng logic gửi.
+      out.push(await readEffective(accessToken, ev, ch).catch(() => getDefaultTemplate(ev, ch)));
     }
   }
   return out;
