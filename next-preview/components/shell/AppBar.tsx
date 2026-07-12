@@ -3,7 +3,8 @@
 import * as React from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import Icon from './Icon';
-import NotificationBell from './NotificationBell';
+// TẠM TẮT chuông thông báo trên UI (theo yêu cầu). Khôi phục: bỏ comment import + <NotificationBell/> bên dưới.
+// import NotificationBell from './NotificationBell';
 import UserMenu from './UserMenu';
 import { useDmsWrite } from '@/lib/client/useDmsWrite';
 
@@ -80,7 +81,8 @@ export default function AppBar({ onMenu }: { onMenu?: () => void } = {}): React.
           <Icon name="upload" />
         </div>
       )}
-      <NotificationBell />
+      {/* TẠM TẮT chuông thông báo (khôi phục: bỏ comment dòng dưới + import ở đầu file). */}
+      {/* <NotificationBell /> */}
       <div className="iconbtn" title="Trợ giúp">
         <Icon name="help" />
       </div>
