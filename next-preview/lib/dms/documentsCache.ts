@@ -7,14 +7,19 @@
 // LƯU Ý: cache global (toàn org). Hợp lệ vì mọi user đã đăng nhập đều có quyền Read
 // trên DMS Library (xem DMS_PERMISSION_MODEL.md). Không dùng cho dữ liệu per-user.
 import { resolveSiteId, resolveListId } from '@/lib/sharepoint/resolve';
-import { graphFetch } from '@/lib/graph/client';
+import { graphFetch, GraphError } from '@/lib/graph/client';
 import { mapSharePointItemToDocument, GraphListItem } from '@/lib/dms/mapSharePointItemToDocument';
 import { pairDocuments } from '@/lib/dms/pairDocuments';
 import { analyzePairing, PairingStats } from '@/lib/dms/pairingStats';
 import { IDocument } from '@dms/models/IDocument';
 
 const PAGE_SIZE = 200;
-const SAFETY_MAX = 2000;
+// Trần an toàn số item thô nạp về. PHẢI lớn hơn tổng item của thư viện (văn bản + bản mềm
+// + đính kèm + folder), nếu KHÔNG các item MỚI NHẤT (id lớn) bị rớt: Graph trả item theo id
+// TĂNG DẦN (cũ trước) và pagination dừng ở trần → VB vừa upload không vào cache → 404 khi mở
+// deep-link + không hiện ở Search/List/Dashboard. Nâng từ 2000 (đã chạm trần) lên 5000 + cảnh
+// báo khi vẫn truncated để biết mà nâng tiếp / chuyển sang fetch tăng dần.
+const SAFETY_MAX = 5000;
 const TTL_MS = 5 * 60 * 1000; // 5 phút
 
 export interface CachedDocs {
@@ -87,6 +92,16 @@ async function fetchAndBuild(accessToken: string): Promise<CachedDocs> {
     nextUrl = page['@odata.nextLink'];
   }
 
+  // CẢNH BÁO: vẫn còn item CHƯA nạp (đụng trần SAFETY_MAX). Item mới nhất (id lớn) sẽ bị
+  // rớt khỏi cache → VB mới không thấy ở Search/List. Cần nâng SAFETY_MAX hoặc đổi chiến lược fetch.
+  if (truncated) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[CACHE][WARN] Đã chạm trần SAFETY_MAX=${SAFETY_MAX} — thư viện còn item CHƯA nạp; ` +
+        `VB mới nhất có thể KHÔNG hiện ở Search/List. Cần nâng SAFETY_MAX.`
+    );
+  }
+
   // File đính kèm nằm trong thư mục con "Attachments/[SoVanBan]/" của thư mục văn bản cha.
   // Trong SharePoint document library MỖI file LÀ một list item → query /items trả CẢ attachment.
   // Attachment KHÔNG có metadata business (NgayBanHanh/NamBanHanh/TrangThai trống) nên nếu coi như
@@ -111,6 +126,37 @@ async function fetchAndBuild(accessToken: string): Promise<CachedDocs> {
   clog(`documents refresh done ${buildMs.toFixed(0)}ms (docs=${documents.length}, pages=${pages})`);
 
   return { documents, rawItemCount: rawItems.length, fileItemCount: fileItems.length, pages, truncated, stats, builtAt: Date.now(), buildMs };
+}
+
+// Đọc TRỰC TIẾP 1 văn bản theo list-item id, KHÔNG qua cache dùng chung.
+// Dùng làm FALLBACK cho /api/documents/[id] khi item chưa/không có trong cache — điển hình là
+// VB vừa upload hoặc item nằm ngoài cửa sổ SAFETY_MAX. Chi phí: 1 Graph call cho đúng 1 item.
+// Trả null nếu item không tồn tại (404) hoặc không phải file văn bản chính (folder/attachment).
+// LƯU Ý: đây là 1 item đơn → KHÔNG ghép cặp bản mềm (editableSource từ sibling .docx). editableSource
+// chỉ có nếu suy được từ cột (HasEditableSource/EditableSourceUrl). Bản đầy đủ (đã pair) sẽ được
+// phục vụ ngay khi cache refresh (đã bao trùm nhờ SAFETY_MAX mới).
+export async function fetchDocumentByIdDirect(accessToken: string, id: string): Promise<IDocument | null> {
+  const site = await resolveSiteId(accessToken);
+  const list = await resolveListId(accessToken);
+  const driveSelect =
+    'id,name,webUrl,size,file,folder,createdDateTime,createdBy,lastModifiedDateTime,lastModifiedBy,parentReference';
+  const url = `/sites/${site.id}/lists/${list.id}/items/${encodeURIComponent(id)}?$expand=fields,driveItem($select=${driveSelect})`;
+  let item: GraphListItem;
+  try {
+    item = await graphFetch<GraphListItem>(url, { accessToken });
+  } catch (e) {
+    if (e instanceof GraphError && e.status === 404) {
+      return null;
+    }
+    throw e;
+  }
+  // Chỉ nhận file văn bản CHÍNH (có driveItem.file, không phải folder, không nằm trong Attachments/).
+  const isFile = !!(item.driveItem && item.driveItem.file && !item.driveItem.folder);
+  if (!isFile || isAttachmentPath(item.driveItem?.parentReference?.path)) {
+    return null;
+  }
+  clog(`documents direct-by-id hit (id=${id})`);
+  return mapSharePointItemToDocument(item);
 }
 
 function hitRate(): string {

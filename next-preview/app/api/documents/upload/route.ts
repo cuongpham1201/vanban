@@ -11,7 +11,7 @@ import {
 } from '@/lib/dms/sharepointDmsService';
 import { normalizeMetadataPayload, validateUploadMetadata } from '@/lib/dms/writeHelpers';
 import { buildDocumentFileName, sanitizeOriginalFileName } from '@/lib/dms/fileNaming';
-import { invalidateDocumentsCache, getCachedDocuments } from '@/lib/dms/documentsCache';
+import { invalidateDocumentsCache, getCachedDocuments, fetchDocumentByIdDirect } from '@/lib/dms/documentsCache';
 import { idemBegin, idemComplete, idemRelease } from '@/lib/dms/idempotency';
 import { notifyNewDocument } from '@/lib/dms/notifications/events';
 
@@ -162,13 +162,14 @@ export async function POST(req: Request): Promise<NextResponse> {
       editableFileBuffer: editableBuf,
     });
 
-    // 9. Invalidate cache để Search thấy ngay.
+    // 9. Invalidate cache + refresh NỀN (không chặn response) để Search/List/Dashboard thấy VB mới.
     invalidateDocumentsCache('upload');
-    // 10. Read-back.
-    let document: unknown;
+    void getCachedDocuments(appToken, true).catch(() => undefined); // rebuild nền, nuốt lỗi
+    // 10. Read-back NHANH: đọc TRỰC TIẾP 1 item theo id (KHÔNG chờ full rebuild 2000+ item →
+    //     tránh giữ request upload 25–41s gây chậm/504). Bản đầy đủ (ghép bản mềm) về khi cache refresh xong.
+    let document: unknown = null;
     try {
-      const refreshed = await getCachedDocuments(appToken, true);
-      document = refreshed.documents.find((d) => d.id === result.listItemId) ?? null;
+      document = await fetchDocumentByIdDirect(appToken, String(result.listItemId));
     } catch {
       document = null;
     }

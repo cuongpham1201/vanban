@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/options';
 import { GraphError } from '@/lib/graph/client';
 import { LibraryResolveError } from '@/lib/sharepoint/resolve';
-import { getCachedDocuments, invalidateDocumentsCache } from '@/lib/dms/documentsCache';
+import { getCachedDocuments, invalidateDocumentsCache, fetchDocumentByIdDirect } from '@/lib/dms/documentsCache';
 import { MockDmsService } from '@dms/services/MockDmsService';
 import { IDocument } from '@dms/models/IDocument';
 import { assertCanWriteDms, DmsWriteError } from '@/lib/dms/writeGuard';
@@ -28,15 +28,17 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       return NextResponse.json({ ok: false, error: 'Chưa đăng nhập.' }, { status: 401 });
     }
 
+    const isMockDev = IS_DEV && !session.accessToken;
     let documents: IDocument[];
     let source: string;
-    if (IS_DEV && !session.accessToken) {
+    // #31G: web (Azure AD) dùng token delegated; phiên Teams SSO KHÔNG có session.accessToken →
+    // đọc bằng app-only read token (cache documents là org-wide, mọi user đã đăng nhập đều có quyền Read).
+    let accessToken: string | null = null;
+    if (isMockDev) {
       documents = await new MockDmsService().getAllDocuments();
       source = 'mock-dev';
     } else {
-      // #31G: web (Azure AD) dùng token delegated; phiên Teams SSO KHÔNG có session.accessToken →
-      // đọc bằng app-only read token (cache documents là org-wide, mọi user đã đăng nhập đều có quyền Read).
-      const accessToken = session.accessToken ?? (await getAppOnlyGraphTokenReadOnly());
+      accessToken = session.accessToken ?? (await getAppOnlyGraphTokenReadOnly());
       const cached = await getCachedDocuments(accessToken);
       documents = cached.documents;
       source = cached.source;
@@ -44,6 +46,15 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
     const document = documents.find((d) => d.id === id);
     if (!document) {
+      // FALLBACK (FIX): item có thể nằm NGOÀI cache dùng chung — điển hình VB vừa upload hoặc item
+      // ngoài cửa sổ SAFETY_MAX. Đọc TRỰC TIẾP 1 item theo id để deep-link/thông báo luôn mở được,
+      // không phụ thuộc cache đã refresh hay chưa. (Bản đầy đủ có ghép bản mềm sẽ về khi cache refresh.)
+      if (!isMockDev && accessToken) {
+        const direct = await fetchDocumentByIdDirect(accessToken, id).catch(() => null);
+        if (direct) {
+          return NextResponse.json({ ok: true, source: 'graph-direct', document: direct });
+        }
+      }
       return NextResponse.json({ ok: false, error: `Không tìm thấy văn bản id ${id}.` }, { status: 404 });
     }
     return NextResponse.json({ ok: true, source, document });
