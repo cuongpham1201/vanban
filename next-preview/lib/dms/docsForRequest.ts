@@ -7,6 +7,7 @@ import { IDocument } from '@dms/models/IDocument';
 
 export interface DocsForRequest {
   documents: IDocument[];
+  orphanDocs: IDocument[];
   source: 'cache' | 'inflight' | 'graph';
   cached?: CachedDocs;
 }
@@ -25,5 +26,5 @@ export async function getDocsForRequest(forceRefresh = false): Promise<DocsForRe
   }
   const accessToken = session.accessToken ?? (await getAppOnlyGraphTokenReadOnly());
   const cached = await getCachedDocuments(accessToken, forceRefresh);
-  return { documents: cached.documents, source: cached.source, cached };
+  return { documents: cached.documents, orphanDocs: cached.orphanDocs, source: cached.source, cached };
 }

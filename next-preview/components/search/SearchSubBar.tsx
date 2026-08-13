@@ -19,17 +19,29 @@ export default function SearchSubBar({
   onMode,
   sort,
   onSort,
+  includeDocx,
+  onIncludeDocx,
 }: {
   count: number;
   mode: ViewMode;
   onMode: (m: ViewMode) => void;
   sort: SortKey;
   onSort: (s: SortKey) => void;
+  includeDocx: boolean;
+  onIncludeDocx: (next: boolean) => void;
 }): React.ReactElement {
   return (
     <div className="subbar">
       <h1>Trung tâm tìm kiếm</h1>
       <span className="badge badge-neutral">{count.toLocaleString('vi-VN')} văn bản</span>
+      <label
+        className="docx-toggle"
+        title="Bật để tìm cả bản Word (.docx/.doc) chưa có PDF. Tắt = chỉ tìm văn bản PDF chính thức."
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginLeft: 10, cursor: 'pointer', fontSize: 13 }}
+      >
+        <input type="checkbox" checked={includeDocx} onChange={(e) => onIncludeDocx(e.target.checked)} />
+        <span>Tìm cả bản Word (.docx)</span>
+      </label>
       <div style={{ flex: 1 }} />
       <label className="sortbox" title="Sắp xếp kết quả">
         <span className="t-xs mut">Sắp xếp:</span>

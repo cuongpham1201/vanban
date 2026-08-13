@@ -27,6 +27,9 @@ export async function GET(request: Request): Promise<NextResponse> {
   const forceRefresh = url.searchParams.get('forceRefresh') === '1' || url.searchParams.get('force') === '1';
   const q = (url.searchParams.get('q') ?? '').trim().toLowerCase();
   const nhomTaiLieu = url.searchParams.get('nhomTaiLieu') ?? '';
+  // ?includeDocx=1 → mở rộng phạm vi tìm kiếm: gộp thêm bản Word (.docx/.doc) mồ côi (không có PDF).
+  // Mặc định TẮT → chỉ trả văn bản PDF chính như hiện tại (giữ nguyên List/Search cũ).
+  const includeDocx = url.searchParams.get('includeDocx') === '1';
   // ?fields=lite → trả tập field tối thiểu (cắt payload). Mặc định = full (giữ tương thích).
   const lite = url.searchParams.get('fields') === 'lite';
   // ?all=1 → escape hatch nội bộ/admin: trả TOÀN BỘ dataset (bỏ phân trang). Giữ hành vi full cũ.
@@ -41,7 +44,8 @@ export async function GET(request: Request): Promise<NextResponse> {
     const cached = result.cached;
 
     // Filter in-memory (KHÔNG fetch lại Graph). Khi không có filter → trả nguyên (giữ UI hiện tại).
-    let docs = result.documents;
+    // includeDocx=1 → gộp thêm Word mồ côi vào phạm vi (đặt SAU PDF để PDF vẫn ưu tiên hiển thị trước).
+    let docs = includeDocx ? result.documents.concat(result.orphanDocs) : result.documents;
     if (q) {
       docs = docs.filter((d) => matchesKeyword(d, q));
     }

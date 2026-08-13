@@ -33,7 +33,9 @@ interface DocsResponse {
 const EXPIRED_LABEL = 'Hết hiệu lực';
 
 // BUG#7/#13: cache client documents (module-level).
-let _docsCache: IDocument[] | undefined;
+// Cache theo phạm vi: 'pdf' = chỉ PDF (mặc định), 'all' = gộp thêm Word mồ côi (khi bật nút tick).
+const _docsCache: { pdf?: IDocument[]; all?: IDocument[] } = {};
+const DOCX_PREF_KEY = 'dms.search.includeDocx';
 
 function useDebounced<T>(value: T, ms: number): T {
   const [v, setV] = React.useState(value);
@@ -47,7 +49,16 @@ function useDebounced<T>(value: T, ms: number): T {
 export default function SearchCenterPage(): React.ReactElement {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [raw, setRaw] = React.useState<IDocument[] | null>(_docsCache ?? null);
+  // Nút tick "Tìm cả bản Word": bật → mở rộng phạm vi tìm sang .docx/.doc mồ côi. Nhớ lựa chọn qua localStorage.
+  const [includeDocx, setIncludeDocx] = React.useState<boolean>(() => {
+    if (searchParams.get('docx') === '1') return true;
+    try {
+      return localStorage.getItem(DOCX_PREF_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const [raw, setRaw] = React.useState<IDocument[] | null>((includeDocx ? _docsCache.all : _docsCache.pdf) ?? null);
   const [error, setError] = React.useState<string | undefined>();
   const [query, setQuery] = React.useState(searchParams.get('q') ?? '');
   // Cấu hình filter dùng chung với /admin. Source of truth = SharePoint (API); cache localStorage
@@ -153,20 +164,34 @@ export default function SearchCenterPage(): React.ReactElement {
   };
 
   // Tải documents (dùng chung cache). Gọi nền; refresh sau khi sửa metadata.
+  // includeDocx → gọi kèm ?includeDocx=1 để API gộp thêm Word mồ côi. Cache tách theo phạm vi.
   const loadDocs = React.useCallback((): void => {
-    fetch('/api/documents', { credentials: 'same-origin' })
+    const key: 'pdf' | 'all' = includeDocx ? 'all' : 'pdf';
+    fetch(`/api/documents${includeDocx ? '?includeDocx=1' : ''}`, { credentials: 'same-origin' })
       .then(async (res) => {
         const json = (await res.json()) as DocsResponse;
         if (!res.ok || !json.ok) throw new Error(json?.error ?? `Lỗi tải dữ liệu (HTTP ${res.status}).`);
-        _docsCache = json.documents ?? [];
-        setRaw(_docsCache);
+        _docsCache[key] = json.documents ?? [];
+        setRaw(_docsCache[key] ?? []);
       })
-      .catch((e: Error) => !_docsCache && setError(e.message));
-  }, []);
+      .catch((e: Error) => !_docsCache[key] && setError(e.message));
+  }, [includeDocx]);
 
   React.useEffect(() => {
+    // Đổi phạm vi → hiện ngay bản cache tương ứng (nếu có) rồi tải nền cho tươi.
+    const cached = includeDocx ? _docsCache.all : _docsCache.pdf;
+    if (cached) setRaw(cached);
     loadDocs();
-  }, [loadDocs]);
+  }, [loadDocs, includeDocx]);
+
+  const toggleIncludeDocx = React.useCallback((next: boolean): void => {
+    setIncludeDocx(next);
+    try {
+      localStorage.setItem(DOCX_PREF_KEY, next ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   React.useEffect(() => {
     let alive = true;
@@ -417,7 +442,7 @@ export default function SearchCenterPage(): React.ReactElement {
 
   return (
     <div className="sc-root">
-      <SearchSubBar count={filtered.length} mode={mode} onMode={setMode} sort={sort} onSort={setSort} />
+      <SearchSubBar count={filtered.length} mode={mode} onMode={setMode} sort={sort} onSort={setSort} includeDocx={includeDocx} onIncludeDocx={toggleIncludeDocx} />
 
       {canWrite && selectedIds.size > 0 && (
         <div className="bulkbar" role="region" aria-label="Hành động hàng loạt">

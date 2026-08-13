@@ -9,7 +9,7 @@
 import { resolveSiteId, resolveListId } from '@/lib/sharepoint/resolve';
 import { graphFetch, GraphError } from '@/lib/graph/client';
 import { mapSharePointItemToDocument, GraphListItem } from '@/lib/dms/mapSharePointItemToDocument';
-import { pairDocuments } from '@/lib/dms/pairDocuments';
+import { pairDocuments, collectOrphanWordDocs } from '@/lib/dms/pairDocuments';
 import { analyzePairing, PairingStats } from '@/lib/dms/pairingStats';
 import { IDocument } from '@dms/models/IDocument';
 
@@ -24,6 +24,9 @@ const TTL_MS = 5 * 60 * 1000; // 5 phút
 
 export interface CachedDocs {
   documents: IDocument[];
+  // Word (.docx/.doc) ĐỨNG MỘT MÌNH (không có PDF) — để RIÊNG, mặc định KHÔNG trộn vào documents[].
+  // Search chỉ dùng khi user bật "Tìm cả bản Word". List/Dashboard/Count không đụng tới.
+  orphanDocs: IDocument[];
   rawItemCount: number;
   fileItemCount: number;
   pages: number;
@@ -114,6 +117,7 @@ async function fetchAndBuild(accessToken: string): Promise<CachedDocs> {
   const attachmentItems = rawItems.filter((it) => isFileItem(it) && isAttachmentPath(it.driveItem?.parentReference?.path));
   const mapped = fileItems.map(mapSharePointItemToDocument);
   const documents = pairDocuments(mapped);
+  const orphanDocs = collectOrphanWordDocs(mapped);
   const stats = analyzePairing(mapped);
   const buildMs = performance.now() - t0;
 
@@ -123,9 +127,9 @@ async function fetchAndBuild(accessToken: string): Promise<CachedDocs> {
       `mapped=${mapped.length} documents=${documents.length} ` +
       `pages=${pages} byExt=${JSON.stringify(stats.byExt)} missingKeyField=${JSON.stringify(stats.missingKeyField)}`
   );
-  clog(`documents refresh done ${buildMs.toFixed(0)}ms (docs=${documents.length}, pages=${pages})`);
+  clog(`documents refresh done ${buildMs.toFixed(0)}ms (docs=${documents.length}, orphanWord=${orphanDocs.length}, pages=${pages})`);
 
-  return { documents, rawItemCount: rawItems.length, fileItemCount: fileItems.length, pages, truncated, stats, builtAt: Date.now(), buildMs };
+  return { documents, orphanDocs, rawItemCount: rawItems.length, fileItemCount: fileItems.length, pages, truncated, stats, builtAt: Date.now(), buildMs };
 }
 
 // Đọc TRỰC TIẾP 1 văn bản theo list-item id, KHÔNG qua cache dùng chung.
